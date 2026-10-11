@@ -6,10 +6,22 @@ export interface RenderContext {
   page: Page;
   options: NormalizedOptions;
   logger: Logger;
+  signal: AbortSignal | undefined;
+}
+
+/** Measured render facts reported back for the quality report. */
+export interface RenderMetadata {
+  outputPolicy: "paper-fit";
+  /** Effective scale actually handed to Chromium (0.1 … 1). */
+  scale: number;
+  /** e.g. `A4` or `793×1123px`. */
+  paperLabel: string;
+  viewportWidth: number;
 }
 
 export interface RenderResult {
   bytes: Uint8Array;
+  metadata?: RenderMetadata;
 }
 
 export type RenderMode = "document" | "screen";

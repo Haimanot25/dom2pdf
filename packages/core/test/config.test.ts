@@ -44,9 +44,9 @@ describe("parseConvertOptions", () => {
     expectCode(() => parseConvertOptions({ input: { type: "stdin" } }), "INVALID_INPUT");
   });
 
-  it("rejects mode 'screen' with INVALID_INPUT until the screen phase ships", () => {
-    const error = expectCode(() => parseConvertOptions({ input: htmlInput, mode: "screen" }), "INVALID_INPUT");
-    expect(error.message).toContain("document");
+  it("accepts mode 'screen' (screen behavior is covered in config-screen-options.test.ts)", () => {
+    const parsed = parseConvertOptions({ input: htmlInput, mode: "screen" });
+    expect(parsed.mode).toBe("screen");
   });
 
   it("rejects pdf.format combined with explicit width/height", () => {

@@ -150,20 +150,16 @@ test.describe("convert: security policy enforcement", () => {
     ).rejects.toMatchObject({ code: "BLOCKED_URL" });
   });
 
-  test("rejects malformed URLs and unknown options clearly", async () => {
+  test("rejects malformed URLs with INVALID_INPUT", async () => {
     await expect(converter.convert({ input: { type: "url", url: "not-a-url" } })).rejects.toMatchObject({
       code: "INVALID_INPUT",
     });
+  });
 
+  test("rejects unknown options with UNSUPPORTED_OPTION", async () => {
     await expect(
       converter.convert({ input: { type: "html", html: "<p>x</p>" }, format: "A4" } as never),
     ).rejects.toMatchObject({ code: "UNSUPPORTED_OPTION" });
-  });
-
-  test("rejects screen mode explicitly until implemented", async () => {
-    await expect(
-      converter.convert({ input: { type: "html", html: "<p>x</p>" }, mode: "screen" } as never),
-    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
   });
 });
 

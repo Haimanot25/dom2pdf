@@ -3,7 +3,9 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "lib": ["ES2022"],
+    // DOM lib is required for type-checking in-page (page.evaluate) code;
+    // Node-specific typing comes from "types": ["node"] in each package.
+    "lib": ["ES2022", "DOM"],
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,

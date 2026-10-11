@@ -2,7 +2,7 @@
 
 **PageForge** is an open-source HTML-to-PDF conversion engine built on Playwright's Chromium. It converts URLs, HTML strings, and explicitly-permitted local HTML files into PDFs that preserve website appearance as closely as the browser and the PDF format allow, keeping text selectable and searchable wherever possible.
 
-> **Status: pre-alpha (Phase 1 of 6).** This repository is under active construction. Only `document` mode (print CSS) is implemented so far; `screen` mode, the full readiness/quality pipeline, the CLI, and the benchmark suite arrive in later phases. See [Roadmap](#roadmap) — no feature is documented here before it works.
+> **Status: pre-alpha (Phase 2 of 6).** This repository is under active construction. Both rendering modes work — `document` (print CSS) and `screen` (paper-fit output policy) — while the readiness/quality pipeline, the CLI, and the benchmark suite arrive in later phases. See [Roadmap](#roadmap) — no feature is documented here before it works.
 
 ## Quick start
 
@@ -25,6 +25,15 @@ try {
 }
 ```
 
+### Rendering modes
+
+| Mode | What it does | Output policy |
+| --- | --- | --- |
+| `document` (default) | Print CSS media; author print styles and `@page` rules apply (via `pdf.preferCSSPageSize`) | paper config: `format`/`width`/`height`, `margin`, `landscape`, `scale` |
+| `screen` | Screen CSS media at your viewport, then paginated | `paper-fit` (implemented): viewport scaled exactly onto the paper width; `viewport-pages`/`full-content` are reserved and rejected with `UNSUPPORTED_OPTION` |
+
+Screen mode reports its measured fit (`screen.output-policy` check) plus heuristic warnings for horizontal overflow, fixed/sticky elements, and scroll containers.
+
 ### Inputs
 
 | Type | Example | Notes |
@@ -42,7 +51,9 @@ try {
 
 ## Errors
 
-All failures throw `PageForgeError` with a stable machine-readable `code` such as `INVALID_INPUT`, `BLOCKED_URL`, `LOCAL_FILE_NOT_ALLOWED`, `NAVIGATION_FAILED`, `READINESS_TIMEOUT`, `RENDER_TIMEOUT`, `PDF_VALIDATION_FAILED`, `BROWSER_FAILURE`, or `CONVERTER_CLOSED`.
+All failures throw `PageForgeError` with a stable machine-readable `code` such as `INVALID_INPUT`, `UNSUPPORTED_OPTION`, `BLOCKED_URL`, `LOCAL_FILE_NOT_ALLOWED`, `NAVIGATION_FAILED`, `READINESS_TIMEOUT`, `RENDER_TIMEOUT`, `PDF_VALIDATION_FAILED`, `BROWSER_FAILURE`, `CANCELLED`, or `CONVERTER_CLOSED`.
+
+Conversions accept an optional `signal: AbortSignal`; aborting fails fast with `CANCELLED` and cleans up the browser context.
 
 ## Development
 
@@ -61,7 +72,7 @@ Requires Node.js ≥ 22.13 (24 LTS recommended) and pnpm.
 ## Roadmap
 
 1. ✅ **Phase 1 — Foundation**: workspace, strict TypeScript, working URL/HTML/file → PDF, security pre-checks, deadlines.
-2. **Phase 2 — Core rendering**: screen mode with output policies, full PDF option coverage, cancellation, error catalog completion.
+2. ✅ **Phase 2 — Core rendering**: screen mode with paper-fit output policy, print CSS/paged media coverage, pagination, cancellation (`AbortSignal`), structured errors.
 3. **Phase 3 — Readiness & quality**: font/image/network/selector readiness, text extraction checks, layout diagnostics, quality policies.
 4. **Phase 4 — CLI & documentation**: `pageforge convert|inspect|benchmark`, full docs, examples.
 5. **Phase 5 — Security & reliability**: request-layer policies, resource limits, pooling and repeat-run guarantees.

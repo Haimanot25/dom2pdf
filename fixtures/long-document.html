@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>PageForge fixture: long document</title>
+    <style>
+      body {
+        margin: 2rem;
+        font-family: Georgia, "Times New Roman", serif;
+        line-height: 1.6;
+      }
+      h2 {
+        color: #0b3d91;
+        border-bottom: 2px solid #0b3d91;
+        padding-bottom: 0.2rem;
+        margin-top: 2.5rem;
+      }
+      footer {
+        margin-top: 3rem;
+        font-size: 0.85rem;
+        color: #555;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Long document baseline</h1>
+    <p>
+      This fixture is intentionally long so pagination behavior can be asserted
+      without relying on dynamic content. Each section contributes several
+      paragraphs of prose; across all sections the document spans multiple A4
+      pages in document mode.
+    </p>
+
+    <h2>Section 1 — Foundations</h2>
+    <p>
+      A conversion engine is only as trustworthy as its weakest guarantee. When
+      a page is handed to the renderer, every assumption about timing, network
+      reachability, and document structure has to be either verified or
+      explicitly documented as an assumption. The paragraphs that follow exist
+      to fill pages in a deterministic fashion, which is precisely the point:
+      no scripts, no remote assets, no surprises.
+    </p>
+    <p>
+      Pagination is the first visible property of a paged format. Text flows
+      from one page to the next, headings may straddle boundaries, and tables
+      can split awkwardly. None of that is a bug in the engine; it is the
+      contract of a flow layout expressed on fixed-size sheets of paper.
+    </p>
+    <p>
+      Reproducibility matters too. Running this fixture twice on the same
+      machine must yield the same page count, and page counts are one of the
+      few structural facts that can be asserted cheaply and honestly.
+    </p>
+    <p>
+      The prose here is deliberately generic so that it never becomes stale.
+      It repeats a small set of ideas — verification, determinism, honesty —
+      in slightly different orders, producing enough lines of text to overflow
+      the first sheet several times over.
+    </p>
+
+    <h2>Section 2 — Deadlines</h2>
+    <p>
+      Every stage of a conversion consumes time from a shared budget rather
+      than enjoying its own unlimited allowance. Navigation borrows from the
+      readiness deadline; rendering has its own deadline but still fails fast
+      when the clock runs out. This design keeps total latency predictable.
+    </p>
+    <p>
+      A page that loads slowly must not be able to hold the pipeline hostage.
+      When the budget is exhausted, the conversion fails with a typed error
+      whose code tells the caller exactly which phase gave out, so recovery
+      logic can be written against stable identifiers instead of message text.
+    </p>
+    <p>
+      Timeouts are not failures of correctness; they are refusals to guess.
+      The engine would rather return a clear, typed error than quietly emit a
+      partial document that might be mistaken for a complete one.
+    </p>
+    <p>
+      More prose, more lines. The remaining paragraphs in this section exist
+      to push the document further down the page stack so that assertions
+      about page counts above five or six remain stable across environments.
+    </p>
+
+    <h2>Section 3 — Isolation</h2>
+    <p>
+      Each conversion runs in a brand-new browser context. Cookies, local
+      storage, cache entries, and service workers from previous jobs cannot
+      leak into the next one, because the context that held them is destroyed
+      when the job ends — whether it ends in success, failure, timeout, or
+      cancellation.
+    </p>
+    <p>
+      Isolation also simplifies reasoning about concurrency. Two conversions
+      sharing a browser process never share state, so their results cannot
+      depend on execution order, and a crash in one context does not corrupt
+      another.
+    </p>
+    <p>
+      The cost of isolation is a small amount of setup per job, which is
+      amortized by reusing the browser process itself. Process startup is the
+      expensive part; context creation is cheap by comparison.
+    </p>
+    <p>
+      And still the text continues, section by section, paragraph by paragraph,
+      accumulating the vertical space needed for a genuinely multi-page PDF
+      that exercises Chromium's flow layout end to end.
+    </p>
+
+    <h2>Section 4 — Security</h2>
+    <p>
+      Destinations are validated before the browser ever sees them: protocols
+      are allow-listed, addresses are classified as public or private, and
+      hostnames are resolved so that every returned address must pass the same
+      classification. Local files require an explicit allowlist and are checked
+      after resolving symlinks.
+    </p>
+    <p>
+      None of these in-process checks replace deployment-level egress rules,
+      and the documentation says so. Layered defenses assume that each layer
+      can fail and rely on the next one to catch what slips through.
+    </p>
+    <p>
+      Credentials never reach logs or reports. URLs are sanitized before they
+      appear in any message, sensitive query parameters are redacted, and
+      fragments are dropped entirely.
+    </p>
+    <p>
+      These paragraphs keep the page counter climbing while restating the
+      project's stance: secure by default, explicit opt-in for anything
+      dangerous, and honest documentation about residual risk.
+    </p>
+
+    <h2>Section 5 — Quality</h2>
+    <p>
+      The quality report separates what was measured from what was inferred.
+      Structural checks report facts — the file parsed, the page count is
+      known, the header is present. Heuristic warnings are labeled as such, so
+      a caller can decide how much weight to give them.
+    </p>
+    <p>
+      Nothing in the report claims visual fidelity or correct reading order,
+      because those properties are not yet measured. A report that overstates
+      its confidence is worse than no report at all.
+    </p>
+    <p>
+      Text extraction proves that glyphs were emitted as selectable text, which
+      is a weaker statement than "the document reads correctly," and the
+      documentation keeps that distinction explicit.
+    </p>
+    <p>
+      As before, the goal of this paragraph is vertical space: enough lines to
+      make the fixture a stable multi-page baseline for assertions that the
+      page count comfortably exceeds a small single-digit threshold.
+    </p>
+
+    <h2>Section 6 — Rendering modes</h2>
+    <p>
+      Document mode prints with CSS print media, letting author print styles
+      apply exactly as they would from the browser's own print dialog. Screen
+      mode keeps screen media and scales the viewport onto the paper, which is
+      what this section's companion tests exercise elsewhere in the suite.
+    </p>
+    <p>
+      The choice of mode changes layout substantially: screen-only decorations
+      may vanish in print media, while print-only refinements appear only when
+      the engine renders with print media. That difference is the feature.
+    </p>
+    <p>
+      Output policies make screen mode predictable by declaring, up front, how
+      a viewport becomes a paginated document instead of leaving the mapping
+      implicit in whatever the renderer happens to do.
+    </p>
+    <p>
+      Final paragraphs of the middle sections. The document is now deep enough
+      that any reasonable assertion about multi-page output will hold, while
+      the content remains plain, static, and deterministic.
+    </p>
+
+    <h2>Section 7 — Diagnostics</h2>
+    <p>
+      When something goes wrong, the first question is which phase failed. A
+      stable error code answers that question without parsing prose, and the
+      underlying cause is preserved for debugging alongside a sanitized summary
+      safe to write to logs.
+    </p>
+    <p>
+      Warnings inside a successful report serve the same purpose: they point
+      at likely layout problems — horizontal overflow, fixed overlays, nested
+      scrollers — without pretending to have rendered the page visually.
+    </p>
+    <p>
+      Heuristic labels are load-bearing. They tell the reader that the finding
+      came from inspecting coordinates in the DOM rather than comparing pixels,
+      which sets expectations about both precision and recall.
+    </p>
+    <p>
+      The text marches on. Each additional paragraph buys another few lines of
+      height, and the accumulated height is what makes this fixture useful as
+      a pagination baseline months from now, when rendering internals change.
+    </p>
+
+    <h2>Section 8 — Benchmarks</h2>
+    <p>
+      Benchmarks run against deterministic local fixtures on a loopback server,
+      so numbers reflect the engine rather than the internet's mood on a
+      particular afternoon. Comparisons against raw Playwright isolate what the
+      engine adds on top of the browser.
+    </p>
+    <p>
+      Missing comparators are recorded as skipped with a reason, never filled
+      in with plausible-looking guesses. An honest gap in a results table is
+      more useful than a fabricated row.
+    </p>
+    <p>
+      Machine-readable output lets CI track regressions over time, while the
+      human-readable summary stays short enough to read in a review comment.
+    </p>
+    <p>
+      More sentences, more lines. The prose is intentionally repetitive: a
+      fixture whose content changes whenever someone rewords it would break
+      exactly the determinism the benchmark suite depends on.
+    </p>
+
+    <h2>Section 9 — Ports and platforms</h2>
+    <p>
+      Path handling differs across platforms: directory separators, symlink
+      semantics, and case sensitivity all vary. Containment checks therefore
+      resolve both the candidate path and each allowed directory to canonical
+      form before comparing, which closes the classic symlink-escape hole.
+    </p>
+    <p>
+      Font availability also varies, which is why glyph coverage tests are
+      worded carefully: presence of text in extraction is asserted only where
+      the environment guarantees the font, and bundled faces are planned for
+      the visual determinism work.
+    </p>
+    <p>
+      Line endings, encodings, and locale-sensitive collation are handled at
+      the boundaries — inputs are decoded once, normalized early, and never
+      reinterpreted later.
+    </p>
+    <p>
+      And the paragraphs continue, one after another, each one a few lines
+      taller than a casual test would need, because the whole purpose of this
+      file is to be unambiguously, verifiably longer than one page.
+    </p>
+
+    <h2>Section 10 — Documentation</h2>
+    <p>
+      Documentation ships with the feature, not after it. An option that exists
+      in code but not in the docs is treated as unfinished work, and a documented
+      option that behaves differently from its description is a bug of the same
+      rank as a crashed conversion.
+    </p>
+    <p>
+      Examples in the docs are exercised by tests where practical, because
+      sample code rots quickly when nothing executes it.
+    </p>
+    <p>
+      The roadmap in the README lists only completed phases as complete; future
+      phases are described as intent, clearly separated from today's behavior.
+      Readers should never have to discover that a claimed feature does not work.
+    </p>
+    <p>
+      Another block of prose to add height. At this point the fixture is
+      comfortably into its third or fourth A4 page, and each additional section
+      only strengthens the margin of safety around multi-page assertions.
+    </p>
+
+    <h2>Section 11 — Operations</h2>
+    <p>
+      A converter launches its browser lazily, reuses it across jobs, and
+      closes it on demand. Graceful shutdown matters as much as fast startup:
+      closing twice is a no-op, and conversions attempted after closure fail
+      with a clear, stable code instead of hanging.
+    </p>
+    <p>
+      Concurrency limits protect the host from being overwhelmed, and context
+      cleanup is guaranteed on every exit path so that repeated runs do not
+      accumulate stray processes or memory.
+    </p>
+    <p>
+      Logging stays quiet by default, emits warnings and errors when it does
+      speak, and never prints secrets — the redaction rules apply to every line
+      the library writes.
+    </p>
+    <p>
+      The prose keeps flowing toward the end of the document. There is no
+      dramatic conclusion planned; the text simply needs enough volume to make
+      page-count assertions robust against minor layout differences between
+      environments.
+    </p>
+
+    <h2>Section 12 — Closing</h2>
+    <p>
+      The final section restates the contract: inputs are validated, destinations
+      are checked, deadlines are enforced, contexts are isolated, output is
+      structurally verified, and the report distinguishes facts from guesses.
+    </p>
+    <p>
+      Everything else — visual fidelity, reading order, accessibility trees —
+      is future work that will be measured before it is claimed.
+    </p>
+    <p>
+      Until those measurements exist, the engine's promise is narrow and firm:
+      what the browser shows is what gets printed, within the limits of the PDF
+      format itself, and nothing more is asserted than the tests can prove.
+    </p>
+    <footer>Fixture footer — end of the long document baseline.</footer>
+  </body>
+</html>

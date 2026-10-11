@@ -1,5 +1,6 @@
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import { PageForgeError } from "../errors/index.js";
+import { cancelledError } from "../utils/cancellation.js";
 import type { Logger } from "../utils/logger.js";
 
 export interface BrowserManagerOptions {
@@ -15,6 +16,8 @@ export interface BrowserManagerOptions {
 
 export interface UsePageOptions {
   viewport: { width: number; height: number };
+  /** When aborted, no context is created at all. */
+  signal?: AbortSignal;
 }
 
 /**
@@ -77,6 +80,11 @@ export class BrowserManager {
    */
   async usePage<T>(fn: (page: Page, context: BrowserContext) => Promise<T>, options: UsePageOptions): Promise<T> {
     const browser = await this.ensureBrowser();
+
+    if (options.signal?.aborted === true) {
+      // Cancelled during browser launch: skip context creation entirely.
+      throw cancelledError("Conversion was cancelled before the browser context was created");
+    }
 
     let context: BrowserContext;
     try {

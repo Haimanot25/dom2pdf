@@ -26,7 +26,7 @@ export interface QualityReport {
   status: "succeeded";
   /** Wall-clock time for the whole conversion. */
   durationMs: number;
-  mode: "document";
+  mode: "document" | "screen";
   browser: { name: "chromium"; version: string };
   pdf: {
     byteLength: number;
@@ -39,9 +39,13 @@ export interface QualityReport {
 
 export interface QualityReportInput {
   durationMs: number;
-  mode: "document";
+  mode: "document" | "screen";
   browserVersion: string;
   inspection: PdfInspection;
+  /** Extra checks produced during the conversion (e.g. the output-policy check). */
+  checks?: QualityCheck[];
+  /** Observed or heuristic warnings gathered before rendering finished. */
+  warnings?: QualityWarning[];
 }
 
 /**
@@ -68,7 +72,8 @@ export function buildQualityReport(input: QualityReportInput): QualityReport {
         status: "pass",
         detail: `PDF parsed successfully: ${inspection.pageCount} page(s), ${inspection.byteLength} bytes, header %PDF-${inspection.headerVersion ?? "?"}`,
       },
+      ...(input.checks ?? []),
     ],
-    warnings: [],
+    warnings: input.warnings ?? [],
   };
 }

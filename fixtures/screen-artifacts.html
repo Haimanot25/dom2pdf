@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>PageForge fixture: screen-mode artifacts</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+      }
+      .fixed-header {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 48px;
+        background: #1b1b1f;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        padding: 0 1rem;
+        z-index: 10;
+      }
+      .sticky-note {
+        position: sticky;
+        top: 60px;
+        background: #ffe9a8;
+        padding: 0.5rem;
+      }
+      main {
+        padding: 70px 1rem 1rem;
+      }
+      .scroll-box {
+        overflow: auto;
+        height: 160px;
+        border: 2px solid #333;
+        padding: 0.5rem;
+        margin: 1rem 0;
+      }
+      .wide-table {
+        width: 3000px;
+        border-collapse: collapse;
+        margin: 1rem 0;
+      }
+      .wide-table td {
+        border: 1px solid #999;
+        padding: 0.4rem 1.2rem;
+        white-space: nowrap;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="fixed-header">Fixed overlay header</header>
+    <main>
+      <p class="sticky-note">Sticky element below the header.</p>
+      <p>Baseline paragraph above the scrolling box.</p>
+      <div class="scroll-box">
+        <p>Line 1 inside scroll box</p>
+        <p>Line 2 inside scroll box</p>
+        <p>Line 3 inside scroll box</p>
+        <p>Line 4 inside scroll box</p>
+        <p>Line 5 inside scroll box</p>
+        <p>Line 6 inside scroll box</p>
+        <p>Line 7 inside scroll box</p>
+        <p>Line 8 inside scroll box</p>
+        <p>Line 9 inside scroll box</p>
+        <p>Line 10 inside scroll box — hidden below the fold</p>
+        <p>Line 11 inside scroll box — hidden below the fold</p>
+        <p>Line 12 inside scroll box — hidden below the fold</p>
+      </div>
+      <table class="wide-table">
+        <tbody>
+          <tr>
+            <td>Column A</td><td>Column B</td><td>Column C</td><td>Column D</td><td>Column E</td><td>Column F</td><td>Column G</td><td>Column H</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>Baseline paragraph after the wide table.</p>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>PageForge fixture: print rules</title>
+    <style>
+      @page {
+        size: 148mm 210mm; /* A5 portrait */
+        margin: 12mm;
+      }
+      body {
+        font-family: Georgia, serif;
+        margin: 1rem;
+      }
+      h1 {
+        color: #7a1f1f;
+      }
+      .screen-only {
+        background: #d0e8ff;
+        padding: 0.5rem;
+      }
+      @media print {
+        .screen-only::after {
+          content: " (print styles applied)";
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>CSS paged media fixture</h1>
+    <p class="screen-only">This block has a print-only suffix.</p>
+    <p>
+      With <code>preferCSSPageSize: true</code> the paper should follow this file's
+      <code>&#64;page</code> rule (A5: 148×210mm ≈ 419.5×595.3pt). Without it, the
+      configured format (A4) wins.
+    </p>
+  </body>
+</html>

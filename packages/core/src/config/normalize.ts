@@ -60,12 +60,15 @@ export interface NormalizedSecurityOptions {
 
 export interface NormalizedOptions {
   input: InputOptions;
-  mode: "document";
+  mode: "document" | "screen";
+  /** Only present for screen mode; document mode rejects it. */
+  outputPolicy: { type: "paper-fit" } | undefined;
   viewport: NormalizedViewport;
   pdf: NormalizedPdfOptions;
   readiness: NormalizedReadinessOptions;
   render: NormalizedRenderOptions;
   security: NormalizedSecurityOptions;
+  signal: AbortSignal | undefined;
 }
 
 interface ZodIssueLike {
@@ -84,16 +87,27 @@ function serializeIssues(issues: readonly ZodIssueLike[]): Array<Record<string, 
   }));
 }
 
-/**
- * Validates raw `convert()` options.
+/** Validates raw `convert()` options.
  *
  * - Unknown keys → `UNSUPPORTED_OPTION`
+ * - Reserved-but-unimplemented values → `UNSUPPORTED_OPTION`
  * - Everything else (bad values, cross-field conflicts) → `INVALID_INPUT`
  */
 export function parseConvertOptions(raw: unknown): ConvertOptions {
   const result = convertOptionsSchema.safeParse(raw);
-  if (result.success) return result.data;
-
+  if (result.success) {
+    const parsed = result.data;
+    // Reserved output policies are valid schema values but not yet implemented;
+    // reject them explicitly rather than silently downgrading behavior.
+    if (parsed.outputPolicy !== undefined && parsed.outputPolicy.type !== "paper-fit") {
+      throw new PageForgeError({
+        code: "UNSUPPORTED_OPTION",
+        message: `outputPolicy "${parsed.outputPolicy.type}" is reserved for a later phase; only "paper-fit" is implemented`,
+        details: { outputPolicy: parsed.outputPolicy },
+      });
+    }
+    return parsed;
+  }
   const issues = result.error.issues as ZodIssueLike[];
   const details = { issues: serializeIssues(issues) };
   const first = issues[0];
@@ -159,10 +173,14 @@ function normalizePdf(raw: PdfOptions | undefined): NormalizedPdfOptions {
 /** Validates and applies all defaults. Throws typed errors for invalid input. */
 export function normalizeOptions(raw: unknown): NormalizedOptions {
   const parsed = parseConvertOptions(raw);
+  const mode = parsed.mode ?? "document";
 
   return {
     input: parsed.input,
-    mode: parsed.mode ?? "document",
+    mode,
+    // parseConvertOptions already rejects any policy other than paper-fit, so
+    // screen mode always normalizes to the sole implemented policy.
+    outputPolicy: mode === "screen" ? { type: "paper-fit" as const } : undefined,
     viewport: {
       width: parsed.viewport?.width ?? DEFAULTS.viewport.width,
       height: parsed.viewport?.height ?? DEFAULTS.viewport.height,
@@ -176,5 +194,6 @@ export function normalizeOptions(raw: unknown): NormalizedOptions {
       allowLoopback: parsed.security?.allowLoopback ?? false,
       allowPrivateNetwork: parsed.security?.allowPrivateNetwork ?? false,
     },
+    signal: parsed.signal,
   };
 }
