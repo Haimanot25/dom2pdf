@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>PageForge fixture: Unicode coverage</title>
+    <style>
+      body {
+        margin: 2rem;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        line-height: 1.7;
+      }
+      section {
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px dashed #ccc;
+      }
+      .ethiopic {
+        font-family: "Noto Sans Ethiopic", "Ebrima", "Abyssinica SIL", sans-serif;
+        font-size: 1.3rem;
+      }
+      .arabic {
+        font-family: "Segoe UI", "Tahoma", "Noto Naskh Arabic", sans-serif;
+        font-size: 1.3rem;
+      }
+      .cjk {
+        font-family: "Yu Gothic", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+        font-size: 1.2rem;
+      }
+      .ligatures {
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 1.2rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Unicode coverage fixture</h1>
+
+    <section lang="am">
+      <h2 class="ethiopic">አማርኛ (Ethiopic)</h2>
+      <p class="ethiopic">ሰላም ለዓለም — ኢትዮጵያ ውብ አገር ናት።</p>
+      <p class="ethiopic">አማርኛ ቋንቋ ነው። የዛሬ ቀን ደስ ይላል።</p>
+    </section>
+
+    <section lang="ar" dir="rtl">
+      <h2 class="arabic">العربية (Arabic)</h2>
+      <p class="arabic">مرحبا بالعالم من صفحة فورج.</p>
+      <p class="arabic">هذا نص عربي للتجربة.</p>
+    </section>
+
+    <section lang="zh">
+      <h2 class="cjk">中文 / 日本語 / 한국어 (CJK)</h2>
+      <p class="cjk">你好，世界。这是一个测试。</p>
+      <p class="cjk">こんにちは世界。テストのページです。</p>
+      <p class="cjk">안녕하세요 세계.</p>
+    </section>
+
+    <section lang="fr">
+      <h2>Accented Latin</h2>
+      <p>Café, naïve, façade, Ünïcödé — ÀÉÎÕÜ, ç, ñ, ø, ß, æ, œ.</p>
+    </section>
+
+    <section lang="en">
+      <h2 class="ligatures">Ligatures</h2>
+      <p class="ligatures">
+        The efficient officer’s difficult affluence office flutter — fi, fl, ff, ffi, ffl.
+      </p>
+    </section>
+  </body>
+</html>

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>PageForge fixture: basic text</title>
+    <style>
+      :root {
+        --ink: #1b1b1f;
+        --accent: #0b6e4f;
+      }
+      body {
+        margin: 2rem;
+        color: var(--ink);
+        font-family: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        line-height: 1.5;
+      }
+      h1 {
+        color: var(--accent);
+        border-bottom: 3px solid var(--accent);
+        padding-bottom: 0.25rem;
+      }
+      .callout {
+        background: #e8f5ee;
+        border-left: 6px solid var(--accent);
+        padding: 0.75rem 1rem;
+        margin: 1.5rem 0;
+      }
+      a {
+        color: #0645ad;
+      }
+      table {
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        border: 1px solid #999;
+        padding: 0.4rem 0.8rem;
+        text-align: left;
+      }
+      footer {
+        margin-top: 2.5rem;
+        font-size: 0.85rem;
+        color: #555;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>PageForge basic fixture</h1>
+    <p>
+      This document contains plain paragraphs, <strong>bold</strong>, <em>italic</em>, and
+      <code>inline code</code> so that text extraction can assert selectable, searchable text.
+    </p>
+    <div class="callout">
+      A styled callout with a background color: if <code>printBackground</code> is honored,
+      this box keeps its green tint in the PDF.
+    </div>
+    <p>Here is an external link to <a href="https://example.com/">example.com</a>.</p>
+    <h2>Small table</h2>
+    <table>
+      <thead>
+        <tr><th>Alpha</th><th>Beta</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>one</td><td>two</td></tr>
+        <tr><td>three</td><td>four</td></tr>
+      </tbody>
+    </table>
+    <footer>Fixture footer — baseline for conversion tests.</footer>
+  </body>
+</html>

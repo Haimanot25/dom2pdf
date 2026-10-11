@@ -1,0 +1,31 @@
+{
+  "name": "pageforge-pdf",
+  "version": "0.1.0-alpha.0",
+  "description": "PageForge — HTML-to-PDF conversion engine built on Playwright's Chromium",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "pdfjs-dist": "6.4.299",
+    "playwright": "1.64.0",
+    "zod": "4.6.6"
+  }
+}

@@ -1,0 +1,13 @@
+packages:
+  - "packages/*"
+  - "apps/*"
+
+# Dependencies that run build scripts and are trusted in this workspace.
+# (pnpm's minimumReleaseAge supply-chain guard excluded zod@4.6.6 because it
+# was published recently; pinned versions are reviewed at install time.)
+minimumReleaseAgeExclude:
+  - zod@4.6.6
+
+onlyBuiltDependencies:
+  - "playwright"
+  - "esbuild"
