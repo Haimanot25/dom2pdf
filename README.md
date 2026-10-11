@@ -2,9 +2,19 @@
 
 **PageForge** is an open-source HTML-to-PDF conversion engine built on Playwright's Chromium. It converts URLs, HTML strings, and explicitly-permitted local HTML files into PDFs that preserve website appearance as closely as the browser and the PDF format allow, keeping text selectable and searchable wherever possible.
 
-> **Status: pre-alpha (Phase 3 of 6).** This repository is under active construction. Both rendering modes work — `document` (print CSS) and `screen` (paper-fit output policy) — and the readiness phase plus structured quality checks/policies are in place, while the CLI and the benchmark suite arrive in later phases. See [Roadmap](#roadmap) — no feature is documented here before it works.
+> **Status: pre-alpha (Phase 4 of 6).** This repository is under active construction. Both rendering modes work — `document` (print CSS) and `screen` (paper-fit output policy) — the readiness phase plus structured quality checks/policies are in place, and the `pageforge` CLI (`convert`, `inspect`) is usable. The `benchmark` subcommand arrives with the benchmark suite in Phase 6. See [Roadmap](#roadmap) — no feature is documented here before it works.
 
 ## Quick start
+
+```bash
+# Library
+pnpm build
+
+# CLI (from this repository)
+pnpm pageforge convert https://example.com -o example.pdf
+pnpm pageforge convert ./report.html --format A4 --margin 15mm --json
+pnpm pageforge inspect example.pdf
+```
 
 ```ts
 import { createConverter } from "pageforge-pdf";
@@ -81,9 +91,17 @@ await converter.convert({
 
 ## Errors
 
-All failures throw `PageForgeError` with a stable machine-readable `code` such as `INVALID_INPUT`, `UNSUPPORTED_OPTION`, `BLOCKED_URL`, `LOCAL_FILE_NOT_ALLOWED`, `NAVIGATION_FAILED`, `READINESS_TIMEOUT`, `RENDER_TIMEOUT`, `PDF_VALIDATION_FAILED`, `BROWSER_FAILURE`, `CANCELLED`, or `CONVERTER_CLOSED`.
+All failures throw `PageForgeError` with a stable machine-readable `code` such as `INVALID_INPUT`, `UNSUPPORTED_OPTION`, `BLOCKED_URL`, `LOCAL_FILE_NOT_ALLOWED`, `NAVIGATION_FAILED`, `READINESS_TIMEOUT`, `RENDER_TIMEOUT`, `PDF_VALIDATION_FAILED`, `QUALITY_POLICY_FAILED`, `BROWSER_FAILURE`, `CANCELLED`, or `CONVERTER_CLOSED`.
 
-Conversions accept an optional `signal: AbortSignal`; aborting fails fast with `CANCELLED` and cleans up the browser context.
+Conversions accept an optional `signal: AbortSignal`; aborting fails fast with `CANCELLED` and cleans up the browser context. The CLI maps failures to stable exit codes: `0` ok, `2` usage, `3` conversion error, `4` quality-policy rejection, `130` SIGINT.
+
+## Documentation
+
+- [Getting started](docs/getting-started.md) — build, first conversion, CLI basics
+- [Rendering modes](docs/modes.md) — `document` vs `screen`, output policies, paper-fit math
+- [API reference](docs/api.md) — every option, report checks/warnings, error codes
+- [CLI reference](docs/cli.md) — commands, flags, JSON formats, exit codes
+- [Security](docs/security.md) — what is enforced today, and what is not yet
 
 ## Development
 
@@ -104,9 +122,9 @@ Requires Node.js ≥ 22.13 (24 LTS recommended) and pnpm.
 1. ✅ **Phase 1 — Foundation**: workspace, strict TypeScript, working URL/HTML/file → PDF, security pre-checks, deadlines.
 2. ✅ **Phase 2 — Core rendering**: screen mode with paper-fit output policy, print CSS/paged media coverage, pagination, cancellation (`AbortSignal`), structured errors.
 3. ✅ **Phase 3 — Readiness & quality**: font/image/network/selector readiness under one deadline, observed resource diagnostics, text extraction checks, quality policies (`QUALITY_POLICY_FAILED`).
-4. **Phase 4 — CLI & documentation**: `pageforge convert|inspect|benchmark`, full docs, examples.
-5. **Phase 5 — Security & reliability**: request-layer policies, resource limits, pooling and repeat-run guarantees.
-6. **Phase 6 — Benchmark & alpha**: deterministic fixtures, comparative benchmarks, CI, Docker, release docs.
+4. ✅ **Phase 4 — CLI & documentation**: `pageforge convert|inspect` with `--help`, JSON reports, stable exit codes (0/2/3/4/130), SIGINT cancellation; guides under `docs/`.
+5. **Phase 5 — Security & reliability**: request-layer policies (`BLOCKED_REDIRECT`/`BLOCKED_RESOURCE`), resource limits (`RESOURCE_LIMIT_EXCEEDED`), pooling and repeat-run guarantees.
+6. **Phase 6 — Benchmark & alpha**: `pageforge benchmark`, deterministic fixtures, comparative benchmarks, CI, Docker, release docs.
 
 ## License
 

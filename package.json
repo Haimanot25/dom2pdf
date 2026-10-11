@@ -14,8 +14,9 @@
     "typecheck": "tsc -p tsconfig.check.json",
     "lint": "eslint .",
     "test:unit": "vitest run",
-    "test:e2e": "pnpm --filter pageforge-pdf build && playwright test",
+    "test:e2e": "pnpm -r build && playwright test",
     "test": "pnpm test:unit && pnpm test:e2e",
+    "pageforge": "node apps/cli/dist/index.js",
     "browser:install": "playwright install chromium"
   },
   "devDependencies": {

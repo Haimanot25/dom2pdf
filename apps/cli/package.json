@@ -1,0 +1,25 @@
+{
+  "name": "pageforge-cli",
+  "version": "0.1.0-alpha.0",
+  "description": "PageForge — command-line HTML-to-PDF conversion and PDF inspection",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "pageforge": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "commander": "15.0.0",
+    "pageforge-pdf": "workspace:*"
+  }
+}
