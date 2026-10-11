@@ -9,6 +9,17 @@ export interface PdfInspection {
   pageCount: number;
   /** PDF header version (e.g. `"1.7"`), or null if absent. */
   headerVersion: string | null;
+  /** Text extraction stats when requested via `inspectPdf(bytes, { extractText: true })`. */
+  text: PdfTextStats | null;
+}
+
+export interface PdfTextStats {
+  /** Non-whitespace characters across the whole document. */
+  totalChars: number;
+  /** Non-whitespace characters per page, in page-tree order. */
+  perPageChars: number[];
+  /** 1-based page numbers that contain no extractable text. */
+  emptyPages: number[];
 }
 
 function readHeader(bytes: Uint8Array): string | null {
@@ -32,8 +43,13 @@ function readHeader(bytes: Uint8Array): string | null {
  *
  * A successful parse (header + document tree + page tree) is a structural
  * check only — it says nothing about visual fidelity or reading order.
+ * Text extraction (also a weak signal: presence of text, not correct reading
+ * order) runs in the same parse when `extractText` is set.
  */
-export async function inspectPdf(bytes: Uint8Array): Promise<PdfInspection> {
+export async function inspectPdf(
+  bytes: Uint8Array,
+  options: { extractText?: boolean } = {},
+): Promise<PdfInspection> {
   const byteLength = bytes.byteLength;
   const headerVersion = readHeader(bytes);
 
@@ -52,7 +68,30 @@ export async function inspectPdf(bytes: Uint8Array): Promise<PdfInspection> {
     const task = getDocument({ data: new Uint8Array(bytes), verbosity: 0 });
     try {
       const document = await task.promise;
-      return { byteLength, pageCount: document.numPages, headerVersion };
+      const inspection: PdfInspection = {
+        byteLength,
+        pageCount: document.numPages,
+        headerVersion,
+        text: null,
+      };
+      if (options.extractText === true) {
+        const perPageChars: number[] = [];
+        const emptyPages: number[] = [];
+        for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+          const page = await document.getPage(pageNumber);
+          const content = await page.getTextContent();
+          const text = content.items.map((item) => ("str" in item ? item.str : "")).join("");
+          const chars = text.replace(/\s+/g, "").length;
+          perPageChars.push(chars);
+          if (chars === 0) emptyPages.push(pageNumber);
+        }
+        inspection.text = {
+          totalChars: perPageChars.reduce((sum, count) => sum + count, 0),
+          perPageChars,
+          emptyPages,
+        };
+      }
+      return inspection;
     } finally {
       await task.destroy().catch(() => undefined);
     }

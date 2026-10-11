@@ -7,20 +7,92 @@ import { applyInput } from "../inputs/apply.js";
 import { prepareInput } from "../inputs/resolve.js";
 import { analyzeScreenLayout, layoutWarnings } from "../layout-analysis/analyze.js";
 import { inspectPdf } from "../pdf/inspect.js";
+import { assertQualityPolicy } from "../quality/policy.js";
 import { buildQualityReport, type QualityCheck, type QualityWarning } from "../quality/report.js";
 import { documentRenderer } from "../renderers/document.js";
 import { screenRenderer } from "../renderers/screen.js";
 import type { Renderer } from "../renderers/types.js";
+import { describeReadiness, waitForReadiness, type ReadinessResult } from "../readiness/wait.js";
+import { trackResources, type ResourceTracker } from "../readiness/tracking.js";
 import { raceWithAbort, throwIfAborted } from "../utils/cancellation.js";
 import { Deadline } from "../utils/deadline.js";
 import { createLogger, type Logger } from "../utils/logger.js";
+import { sanitizeUrl } from "../utils/url.js";
 import { ConversionResult } from "./result.js";
 import type { Converter, ConvertResult, CreateConverterOptions } from "./types.js";
 
 const DEFAULT_LAUNCH_TIMEOUT_MS = 60_000;
+const LIST_PREVIEW_LIMIT = 3;
 
 function rendererFor(mode: "document" | "screen"): Renderer {
   return mode === "screen" ? screenRenderer : documentRenderer;
+}
+
+function previewList(items: string[]): string {
+  const shown = items.slice(0, LIST_PREVIEW_LIMIT).join(", ");
+  return items.length > LIST_PREVIEW_LIMIT ? `${shown}, … (${items.length} total)` : shown;
+}
+
+/** Turns tracked resource traffic + image state into observed warnings/checks. */
+function resourceDiagnostics(
+  tracker: ResourceTracker,
+  readiness: ReadinessResult,
+): { warnings: QualityWarning[]; check: QualityCheck } {
+  const issues = tracker.issues();
+  const failed = issues.filter((issue) => issue.kind === "request-failed");
+  const httpErrors = issues.filter((issue) => issue.kind === "http-error");
+  const brokenImages = readiness.images.brokenUrls.map((url) => sanitizeUrl(url));
+  const warnings: QualityWarning[] = [];
+
+  if (failed.length > 0) {
+    warnings.push({
+      code: "resources.request-failed",
+      source: "observed",
+      message: `${failed.length} request(s) failed: ${previewList(
+        failed.map((issue) => (issue.errorText !== undefined ? `${issue.url} (${issue.errorText})` : issue.url)),
+      )}`,
+    });
+  }
+  if (httpErrors.length > 0) {
+    warnings.push({
+      code: "resources.http-error",
+      source: "observed",
+      message: `${httpErrors.length} request(s) returned HTTP ≥ 400: ${previewList(
+        httpErrors.map((issue) => `${issue.url} → ${String(issue.status ?? "?")}`),
+      )}`,
+    });
+  }
+  if (brokenImages.length > 0) {
+    warnings.push({
+      code: "resources.broken-images",
+      source: "observed",
+      message: `${brokenImages.length} <img> element(s) failed to load: ${previewList(brokenImages)}`,
+    });
+  }
+  if (readiness.unavailableFonts.length > 0) {
+    warnings.push({
+      code: "resources.font-unavailable",
+      source: "observed",
+      message: `Font famil(ies) the browser reports as unavailable: ${previewList(readiness.unavailableFonts)}`,
+    });
+  }
+
+  const problemCount = failed.length + httpErrors.length + brokenImages.length;
+  const check: QualityCheck =
+    problemCount === 0
+      ? {
+          id: "resources",
+          status: "pass",
+          detail: "no failed requests, HTTP errors, or broken images",
+        }
+      : {
+          id: "resources",
+          status: "warn",
+          detail: `${failed.length} failed request(s), ${httpErrors.length} HTTP error(s), ${brokenImages.length} broken image(s)`,
+          recommendation:
+            "Check the URLs listed in the report warnings; missing assets render as placeholders in the PDF",
+        };
+  return { warnings, check };
 }
 
 class ConverterImpl implements Converter {
@@ -52,63 +124,125 @@ class ConverterImpl implements Converter {
       return await raceWithAbort(
         this.browserManager.usePage(
           async (page) => {
-            const plan = await raceWithAbort(prepareInput(normalized), signal);
-            readinessDeadline.throwIfExpired(
-              "READINESS_TIMEOUT",
-              `Readiness deadline (${normalized.readiness.timeoutMs}ms) elapsed before navigation started`,
-            );
-            await raceWithAbort(applyInput(page, plan, readinessDeadline.remainingMs()), signal);
-            await raceWithAbort(preparePage(page, normalized), signal);
+            const tracker = trackResources(page);
+            try {
+              const plan = await raceWithAbort(prepareInput(normalized), signal);
+              readinessDeadline.throwIfExpired(
+                "READINESS_TIMEOUT",
+                `Readiness deadline (${normalized.readiness.timeoutMs}ms) elapsed before navigation started`,
+              );
+              await raceWithAbort(applyInput(page, plan, readinessDeadline.remainingMs()), signal);
 
-            const warnings: QualityWarning[] = [];
-            const checks: QualityCheck[] = [];
-            if (normalized.mode === "screen" && normalized.outputPolicy !== undefined) {
-              const findings = await raceWithAbort(analyzeScreenLayout(page), signal);
-              warnings.push(...layoutWarnings(findings));
-            }
+              const readiness = await raceWithAbort(
+                waitForReadiness(page, normalized.readiness, readinessDeadline, tracker),
+                signal,
+              );
+              await raceWithAbort(preparePage(page, normalized), signal);
 
-            // Phase 3 readiness checks (fonts, images, network, selector,
-            // custom conditions, settling) run here under the same deadline.
-            readinessDeadline.throwIfExpired(
-              "READINESS_TIMEOUT",
-              `Readiness deadline (${normalized.readiness.timeoutMs}ms) elapsed before rendering started`,
-            );
+              const warnings: QualityWarning[] = [];
+              const checks: QualityCheck[] = [];
 
-            const browserVersion = page.context().browser()?.version() ?? "unknown";
-            const renderer = rendererFor(normalized.mode);
-            const { bytes, metadata } = await renderer.render({
-              page,
-              options: normalized,
-              logger: log.child("render"),
-              signal,
-            });
+              checks.push({ id: "readiness", status: "pass", detail: describeReadiness(readiness) });
+              const resources = resourceDiagnostics(tracker, readiness);
+              checks.push(resources.check);
+              warnings.push(...resources.warnings);
 
-            if (metadata?.outputPolicy === "paper-fit") {
-              checks.push({
-                id: "screen.output-policy",
-                status: "pass",
-                detail: `paper-fit: ${metadata.viewportWidth}px viewport scaled to ${Math.round(metadata.scale * 100)}% to fit ${metadata.paperLabel} content width`,
+              if (normalized.mode === "screen" && normalized.outputPolicy !== undefined) {
+                const findings = await raceWithAbort(analyzeScreenLayout(page), signal);
+                warnings.push(...layoutWarnings(findings));
+              }
+
+              readinessDeadline.throwIfExpired(
+                "READINESS_TIMEOUT",
+                `Readiness deadline (${normalized.readiness.timeoutMs}ms) elapsed before rendering started`,
+              );
+
+              const browserVersion = page.context().browser()?.version() ?? "unknown";
+              const renderer = rendererFor(normalized.mode);
+              const renderStartedAt = Date.now();
+              const { bytes, metadata } = await renderer.render({
+                page,
+                options: normalized,
+                logger: log.child("render"),
+                signal,
               });
+              const renderMs = Date.now() - renderStartedAt;
+
+              if (metadata?.outputPolicy === "paper-fit") {
+                checks.push({
+                  id: "screen.output-policy",
+                  status: "pass",
+                  detail: `paper-fit: ${metadata.viewportWidth}px viewport scaled to ${Math.round(metadata.scale * 100)}% to fit ${metadata.paperLabel} content width`,
+                });
+              }
+
+              const inspection = await raceWithAbort(inspectPdf(bytes, { extractText: true }), signal);
+              const textStats = inspection.text;
+              if (textStats === null) {
+                throw new PageForgeError({
+                  code: "PDF_VALIDATION_FAILED",
+                  message: "Internal error: text extraction was requested but produced no stats",
+                  details: { byteLength: inspection.byteLength },
+                });
+              }
+
+              checks.push(
+                textStats.totalChars > 0
+                  ? {
+                      id: "pdf-text",
+                      status: "pass",
+                      detail: `${textStats.totalChars} extractable character(s) across ${inspection.pageCount} page(s)`,
+                    }
+                  : {
+                      id: "pdf-text",
+                      status: "warn",
+                      detail: "no extractable text found in the generated PDF",
+                      recommendation:
+                        "The document may be image-only, or fonts may have failed to render as text",
+                    },
+              );
+              if (textStats.emptyPages.length > 0) {
+                warnings.push({
+                  code: "pdf.empty-pages",
+                  source: "observed",
+                  message: `page(s) ${previewList(textStats.emptyPages.map(String))} contain no extractable text (may be blank or image-only)`,
+                });
+              }
+
+              const report = buildQualityReport({
+                durationMs: Date.now() - startedAt,
+                mode: normalized.mode,
+                browserVersion,
+                inspection,
+                timings: { readinessMs: readiness.durationMs, renderMs },
+                checks,
+                warnings,
+              });
+
+              assertQualityPolicy(
+                normalized.quality,
+                {
+                  pageCount: report.pdf.pageCount,
+                  byteLength: report.pdf.byteLength,
+                  textChars: textStats.totalChars,
+                  warningCodes: warnings.map((warning) => warning.code),
+                },
+                report,
+              );
+
+              log.info("Conversion succeeded", {
+                mode: report.mode,
+                pages: report.pdf.pageCount,
+                bytes: report.pdf.byteLength,
+                durationMs: report.durationMs,
+                readinessMs: report.timings.readinessMs,
+                renderMs: report.timings.renderMs,
+                warnings: report.warnings.length,
+              });
+              return new ConversionResult(bytes, report);
+            } finally {
+              tracker.dispose();
             }
-
-            const inspection = await raceWithAbort(inspectPdf(bytes), signal);
-            const report = buildQualityReport({
-              durationMs: Date.now() - startedAt,
-              mode: normalized.mode,
-              browserVersion,
-              inspection,
-              checks,
-              warnings,
-            });
-
-            log.info("Conversion succeeded", {
-              mode: report.mode,
-              pages: report.pdf.pageCount,
-              bytes: report.pdf.byteLength,
-              durationMs: report.durationMs,
-              warnings: report.warnings.length,
-            });
-            return new ConversionResult(bytes, report);
           },
           { viewport: normalized.viewport, ...(signal !== undefined ? { signal } : {}) },
         ),

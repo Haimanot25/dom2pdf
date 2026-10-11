@@ -2,7 +2,7 @@
 
 **PageForge** is an open-source HTML-to-PDF conversion engine built on Playwright's Chromium. It converts URLs, HTML strings, and explicitly-permitted local HTML files into PDFs that preserve website appearance as closely as the browser and the PDF format allow, keeping text selectable and searchable wherever possible.
 
-> **Status: pre-alpha (Phase 2 of 6).** This repository is under active construction. Both rendering modes work — `document` (print CSS) and `screen` (paper-fit output policy) — while the readiness/quality pipeline, the CLI, and the benchmark suite arrive in later phases. See [Roadmap](#roadmap) — no feature is documented here before it works.
+> **Status: pre-alpha (Phase 3 of 6).** This repository is under active construction. Both rendering modes work — `document` (print CSS) and `screen` (paper-fit output policy) — and the readiness phase plus structured quality checks/policies are in place, while the CLI and the benchmark suite arrive in later phases. See [Roadmap](#roadmap) — no feature is documented here before it works.
 
 ## Quick start
 
@@ -33,6 +33,36 @@ try {
 | `screen` | Screen CSS media at your viewport, then paginated | `paper-fit` (implemented): viewport scaled exactly onto the paper width; `viewport-pages`/`full-content` are reserved and rejected with `UNSUPPORTED_OPTION` |
 
 Screen mode reports its measured fit (`screen.output-policy` check) plus heuristic warnings for horizontal overflow, fixed/sticky elements, and scroll containers.
+
+### Readiness
+
+After navigation, every conversion waits (under the single `readiness.timeoutMs` deadline) for the page to actually settle. Defaults: fonts settled (`fonts: true`), all images finished (`images: true`), and 300ms without network activity (`networkIdleMs: 300`, `0` disables — required for long-polling pages, otherwise the phase fails with `READINESS_TIMEOUT` naming the stage instead of hanging).
+
+```ts
+await converter.convert({
+  input: { type: "url", url: "https://example.com/report" },
+  readiness: {
+    timeoutMs: 30_000,
+    selector: "#app",            // wait until visible
+    waitForFonts: ["Inter"],     // wait for declared @font-face loads
+    settleMs: 200,               // extra quiet period
+    networkIdleMs: 300,          // or 0 to disable
+  },
+});
+```
+
+### Quality report & policies
+
+Every successful conversion returns a structured report: `checks` (`pdf-structure`, `readiness`, `resources`, `pdf-text`, and mode-specific ones), `warnings` (each labeled `observed` = measured, or `heuristic` = estimated), `timings`, and measured PDF facts. Resource problems (failed requests, HTTP ≥ 400, broken images, failed web fonts) and empty pages surface as warnings with stable codes.
+
+Policies compare measured output against your expectations and fail with `QUALITY_POLICY_FAILED` (carrying `details.violations` plus the full report):
+
+```ts
+await converter.convert({
+  input: { type: "url", url: "https://example.com/invoice" },
+  quality: { minTextChars: 500, minPages: 1, maxPages: 4, failOnWarnings: false },
+});
+```
 
 ### Inputs
 
@@ -73,7 +103,7 @@ Requires Node.js ≥ 22.13 (24 LTS recommended) and pnpm.
 
 1. ✅ **Phase 1 — Foundation**: workspace, strict TypeScript, working URL/HTML/file → PDF, security pre-checks, deadlines.
 2. ✅ **Phase 2 — Core rendering**: screen mode with paper-fit output policy, print CSS/paged media coverage, pagination, cancellation (`AbortSignal`), structured errors.
-3. **Phase 3 — Readiness & quality**: font/image/network/selector readiness, text extraction checks, layout diagnostics, quality policies.
+3. ✅ **Phase 3 — Readiness & quality**: font/image/network/selector readiness under one deadline, observed resource diagnostics, text extraction checks, quality policies (`QUALITY_POLICY_FAILED`).
 4. **Phase 4 — CLI & documentation**: `pageforge convert|inspect|benchmark`, full docs, examples.
 5. **Phase 5 — Security & reliability**: request-layer policies, resource limits, pooling and repeat-run guarantees.
 6. **Phase 6 — Benchmark & alpha**: deterministic fixtures, comparative benchmarks, CI, Docker, release docs.

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>PageForge fixture: late readiness content</title>
+  </head>
+  <body>
+    <h1>Readiness fixture</h1>
+    <div id="app">app content</div>
+    <div id="timer"></div>
+    <div id="status">no late resource yet</div>
+    <script>
+      // Runs during parsing, so the request is in flight when `load` fires.
+      // Only a network-idle wait is guaranteed to observe its result.
+      fetch("__delay/600/late.png")
+        .then(function () {
+          document.getElementById("status").textContent = "late resource arrived";
+        })
+        .catch(function () {
+          document.getElementById("status").textContent = "late resource failed";
+        });
+      // Fires well after load but with no network traffic of its own.
+      setTimeout(function () {
+        document.getElementById("timer").textContent = "timer text rendered";
+      }, 250);
+    </script>
+  </body>
+</html>

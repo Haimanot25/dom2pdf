@@ -10,7 +10,7 @@ export { buildQualityReport } from "./quality/report.js";
 export type { QualityReport, QualityCheck, QualityWarning, CheckStatus } from "./quality/report.js";
 
 export { inspectPdf } from "./pdf/inspect.js";
-export type { PdfInspection } from "./pdf/inspect.js";
+export type { PdfInspection, PdfTextStats } from "./pdf/inspect.js";
 
 export { createLogger, createSilentLogger } from "./utils/logger.js";
 export type { Logger, LoggerOptions, LogLevel, LogRecord } from "./utils/logger.js";

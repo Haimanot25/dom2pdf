@@ -16,6 +16,11 @@ export const DEFAULTS = {
   pdfScale: 1,
   /** PageForge preserves colors/backgrounds by default (Chromium defaults to off). */
   pdfPrintBackground: true,
+  /** Wait for fonts/images plus a short network quiet window before rendering. */
+  readinessFonts: true,
+  readinessImages: true,
+  readinessNetworkIdleMs: 300,
+  readinessSettleMs: 0,
 } as const;
 
 export interface NormalizedViewport {
@@ -45,6 +50,21 @@ export interface NormalizedPdfOptions {
 
 export interface NormalizedReadinessOptions {
   timeoutMs: number;
+  fonts: boolean;
+  waitForFonts: string[];
+  images: boolean;
+  /** `0` disables the network-idle check. */
+  networkIdleMs: number;
+  selector: string | undefined;
+  settleMs: number;
+}
+
+export interface NormalizedQualityOptions {
+  minTextChars: number | undefined;
+  minPages: number | undefined;
+  maxPages: number | undefined;
+  maxBytes: number | undefined;
+  failOnWarnings: boolean;
 }
 
 export interface NormalizedRenderOptions {
@@ -67,6 +87,7 @@ export interface NormalizedOptions {
   pdf: NormalizedPdfOptions;
   readiness: NormalizedReadinessOptions;
   render: NormalizedRenderOptions;
+  quality: NormalizedQualityOptions;
   security: NormalizedSecurityOptions;
   signal: AbortSignal | undefined;
 }
@@ -186,8 +207,23 @@ export function normalizeOptions(raw: unknown): NormalizedOptions {
       height: parsed.viewport?.height ?? DEFAULTS.viewport.height,
     },
     pdf: normalizePdf(parsed.pdf),
-    readiness: { timeoutMs: parsed.readiness?.timeoutMs ?? DEFAULTS.readinessTimeoutMs },
+    readiness: {
+      timeoutMs: parsed.readiness?.timeoutMs ?? DEFAULTS.readinessTimeoutMs,
+      fonts: parsed.readiness?.fonts ?? DEFAULTS.readinessFonts,
+      waitForFonts: [...(parsed.readiness?.waitForFonts ?? [])],
+      images: parsed.readiness?.images ?? DEFAULTS.readinessImages,
+      networkIdleMs: parsed.readiness?.networkIdleMs ?? DEFAULTS.readinessNetworkIdleMs,
+      selector: parsed.readiness?.selector,
+      settleMs: parsed.readiness?.settleMs ?? DEFAULTS.readinessSettleMs,
+    },
     render: { timeoutMs: parsed.render?.timeoutMs ?? DEFAULTS.renderTimeoutMs },
+    quality: {
+      minTextChars: parsed.quality?.minTextChars,
+      minPages: parsed.quality?.minPages,
+      maxPages: parsed.quality?.maxPages,
+      maxBytes: parsed.quality?.maxBytes,
+      failOnWarnings: parsed.quality?.failOnWarnings ?? false,
+    },
     security: {
       allowLocalFiles: parsed.security?.allowLocalFiles ?? false,
       allowedLocalDirectories: [...(parsed.security?.allowedLocalDirectories ?? [])],

@@ -105,10 +105,56 @@ export const viewportSchema = z.strictObject({
 export const readinessSchema = z.strictObject({
   /**
    * Overall deadline (ms) covering input preparation, navigation, and all
-   * readiness checks — not a per-stage budget.
+   * readiness checks — not a per-stage budget. Exceeding it fails the
+   * conversion with `READINESS_TIMEOUT`, naming the stage that gave out.
    */
   timeoutMs: z.number().int().positive().max(30 * 60_000).optional(),
+  /** Await `document.fonts.ready` (in-flight web-font loads finish first). Default `true`. */
+  fonts: z.boolean().optional(),
+  /**
+   * Font families with a matching `@font-face` that must finish loading
+   * before rendering, e.g. `["Inter"]`. Waits within the overall deadline;
+   * declarations the browser reports as failed (bad URL, parse error) are
+   * surfaced in the quality report (`resources.font-unavailable`) rather than
+   * failing the conversion. Families with no matching declaration are not
+   * flagged — Chromium cannot distinguish a system font from a fallback there.
+   */
+  waitForFonts: z.array(z.string().min(1).max(200)).max(20).optional(),
+  /** Wait until every `<img>` has finished loading (failed images count as finished). Default `true`. */
+  images: z.boolean().optional(),
+  /**
+   * Consider the page ready after this many milliseconds without network
+   * activity. `0` disables the check. Default `300`.
+   */
+  networkIdleMs: z.number().int().min(0).max(60_000).optional(),
+  /** Wait until this CSS selector matches at least one *visible* element. */
+  selector: z.string().min(1).max(1_000).optional(),
+  /** Extra quiet period (ms) after the other checks pass. Default `0`. */
+  settleMs: z.number().int().min(0).max(60_000).optional(),
 });
+
+export const qualitySchema = z
+  .strictObject({
+    /** Minimum extractable (non-whitespace) characters in the generated PDF. */
+    minTextChars: z.number().int().min(0).optional(),
+    /** Fail when the PDF has fewer pages than this. */
+    minPages: z.number().int().min(1).optional(),
+    /** Fail when the PDF has more pages than this. */
+    maxPages: z.number().int().min(1).optional(),
+    /** Fail when the PDF is larger than this many bytes. */
+    maxBytes: z.number().int().min(1).optional(),
+    /** Fail when the report contains any warnings. */
+    failOnWarnings: z.boolean().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.minPages !== undefined && value.maxPages !== undefined && value.minPages > value.maxPages) {
+      ctx.addIssue({
+        code: "custom",
+        message: `quality.minPages (${value.minPages}) cannot exceed quality.maxPages (${value.maxPages})`,
+        path: ["minPages"],
+      });
+    }
+  });
 
 export const renderSchema = z.strictObject({
   /** Deadline (ms) for PDF generation itself. */
@@ -179,6 +225,8 @@ export const convertOptionsSchema = z
     pdf: pdfOptionsSchema.optional(),
     readiness: readinessSchema.optional(),
     render: renderSchema.optional(),
+    /** Output policy: measured values are checked after rendering; violations fail with `QUALITY_POLICY_FAILED`. */
+    quality: qualitySchema.optional(),
     security: securitySchema.optional(),
     /** Cooperative cancellation: the conversion fails fast with `CANCELLED` when aborted. */
     signal: z.instanceof(AbortSignal).optional(),
@@ -217,4 +265,5 @@ export type ParsedConvertOptions = z.output<typeof convertOptionsSchema>;
 export type InputOptions = z.output<typeof inputSchema>;
 export type PdfOptions = z.output<typeof pdfOptionsSchema>;
 export type SecurityOptions = z.output<typeof securitySchema>;
+export type QualityOptions = z.output<typeof qualitySchema>;
 export type PaperFormat = (typeof PAPER_FORMATS)[number];

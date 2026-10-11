@@ -40,6 +40,13 @@ export async function startFixtureServer(rootDir: string = FIXTURES_DIR): Promis
         const requestUrl = new URL(req.url ?? "/", "http://127.0.0.1");
         const pathname = decodeURIComponent(requestUrl.pathname);
 
+        // Test-only: kills the socket mid-response so `requestfailed` fires
+        // with a deterministic connection error (no reliance on closed ports).
+        if (pathname.startsWith("/__abort")) {
+          req.socket.destroy();
+          return;
+        }
+
         // Test-only latency injection: /__delay/<ms>/<anything> stalls before
         // responding so readiness/timeout behavior can be exercised for real.
         const delayMatch = /^\/__delay\/(\d+)(?:\/|$)/.exec(pathname);

@@ -26,6 +26,13 @@ export interface QualityReport {
   status: "succeeded";
   /** Wall-clock time for the whole conversion. */
   durationMs: number;
+  /** Wall-clock time of measured phases within the conversion. */
+  timings: {
+    /** Readiness phase: selector/fonts/images/network-idle/settle waits. */
+    readinessMs: number;
+    /** PDF generation (`page.pdf()`) itself. */
+    renderMs: number;
+  };
   mode: "document" | "screen";
   browser: { name: "chromium"; version: string };
   pdf: {
@@ -42,6 +49,7 @@ export interface QualityReportInput {
   mode: "document" | "screen";
   browserVersion: string;
   inspection: PdfInspection;
+  timings: { readinessMs: number; renderMs: number };
   /** Extra checks produced during the conversion (e.g. the output-policy check). */
   checks?: QualityCheck[];
   /** Observed or heuristic warnings gathered before rendering finished. */
@@ -59,6 +67,7 @@ export function buildQualityReport(input: QualityReportInput): QualityReport {
   return {
     status: "succeeded",
     durationMs: input.durationMs,
+    timings: input.timings,
     mode: input.mode,
     browser: { name: "chromium", version: input.browserVersion },
     pdf: {

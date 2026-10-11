@@ -1,4 +1,4 @@
-import type { Page } from "playwright";
+import type { Page, Response } from "playwright";
 import { PageForgeError } from "../errors/index.js";
 import { sanitizeUrl } from "../utils/url.js";
 import { injectBaseHref, type InputPlan } from "./resolve.js";
@@ -16,10 +16,21 @@ function isTimeoutError(value: unknown): boolean {
  */
 export async function applyInput(page: Page, plan: InputPlan, timeoutMs: number): Promise<void> {
   if (plan.kind === "navigate") {
+    let response: Response | null;
     try {
-      await page.goto(plan.url, { waitUntil: "load", timeout: timeoutMs });
+      response = await page.goto(plan.url, { waitUntil: "load", timeout: timeoutMs });
     } catch (cause) {
       throw wrapNavigationFailure(cause, { url: sanitizeUrl(plan.url), source: plan.source, timeoutMs });
+    }
+    // Chromium's `goto` treats HTTP error statuses as successful navigations
+    // (it would print the error body); PageForge surfaces them as failures
+    // instead of silently producing a "successful" PDF of a 404 page.
+    if (response !== null && response.status() >= 400) {
+      throw new PageForgeError({
+        code: "NAVIGATION_FAILED",
+        message: `Navigation to ${sanitizeUrl(plan.url)} failed with HTTP ${response.status()}`,
+        details: { url: sanitizeUrl(plan.url), source: plan.source, status: response.status() },
+      });
     }
     return;
   }

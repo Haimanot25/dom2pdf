@@ -126,7 +126,12 @@ test.describe("screen mode with paper-fit", () => {
       security: { allowLoopback: true },
     });
     expect(result.report.mode).toBe("document");
-    expect(result.report.warnings).toEqual([]);
+    // Screen-specific diagnostics stay out of document mode; resource/text
+    // warnings are separate concerns covered by tests/readiness.spec.ts.
+    const layoutCodes = result.report.warnings
+      .map((warning) => warning.code)
+      .filter((code) => code.startsWith("screen.") || code.startsWith("layout."));
+    expect(layoutCodes).toEqual([]);
     expect(result.report.checks.find((entry) => entry.id === "screen.output-policy")).toBeUndefined();
   });
 });
