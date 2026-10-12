@@ -1,0 +1,31 @@
+{
+  "name": "pageforge-benchmark",
+  "version": "0.1.0-alpha.0",
+  "description": "PageForge — deterministic HTML-to-PDF benchmark harness (PageForge, raw Playwright, html2pdf.js, WeasyPrint)",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "html2pdf.js": "0.14.0",
+    "pageforge-pdf": "workspace:*",
+    "playwright": "1.64.0"
+  }
+}

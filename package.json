@@ -17,6 +17,7 @@
     "test:e2e": "pnpm -r build && playwright test",
     "test": "pnpm test:unit && pnpm test:e2e",
     "pageforge": "node apps/cli/dist/index.js",
+    "benchmark": "node apps/cli/dist/index.js benchmark",
     "browser:install": "playwright install chromium"
   },
   "devDependencies": {

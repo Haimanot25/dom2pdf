@@ -72,3 +72,5 @@ Exit codes are stable: `0` success, `2` usage error, `3` conversion failed,
 - [API reference](api.md) — every option, the report shape, error codes
 - [CLI reference](cli.md) — commands, flags, JSON formats, exit codes
 - [Security](security.md) — what is enforced today, and the residual risks we document honestly
+- [Benchmark](benchmark.md) — deterministic multi-engine methodology and honesty rules
+- [Releasing](releasing.md) — versioning, the verification gate, publishing

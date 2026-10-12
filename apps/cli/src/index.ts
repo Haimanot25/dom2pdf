@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import { Command, CommanderError } from "commander";
 import { isPageForgeError } from "pageforge-pdf";
+import { registerBenchmarkCommand } from "./benchmark.js";
 import { registerConvertCommand } from "./convert.js";
 import { registerInspectCommand } from "./inspect.js";
 import { errorToJson, errorToText, EXIT_CODES, exitCodeFor } from "./shared.js";
@@ -18,8 +19,9 @@ import { errorToJson, errorToText, EXIT_CODES, exitCodeFor } from "./shared.js";
  * - 130 cancelled via SIGINT (128 + SIGINT)
  *
  * `--json` mode reports errors as JSON on stderr; success reports are JSON on
- * stdout. The CLI contains no conversion logic — everything goes through the
- * `pageforge-pdf` library.
+ * stdout. The CLI contains no conversion or benchmark logic — `convert` and
+ * `inspect` go through the `pageforge-pdf` library, `benchmark` through
+ * `pageforge-benchmark`.
  */
 export async function main(argv: string[]): Promise<number> {
   const program = new Command();
@@ -32,6 +34,7 @@ export async function main(argv: string[]): Promise<number> {
 
   registerConvertCommand(program);
   registerInspectCommand(program);
+  registerBenchmarkCommand(program);
 
   const jsonMode = argv.includes("--json");
   try {

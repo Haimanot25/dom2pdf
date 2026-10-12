@@ -9,7 +9,10 @@ export default defineConfig({
     // Unit tests import the published entry point (`pageforge-pdf`) from CLI
     // code; alias it to core *source* so unit runs never depend on a prior
     // build and always test the current code.
-    alias: { "pageforge-pdf": path.join(root, "packages/core/src/index.ts") },
+    alias: {
+      "pageforge-pdf": path.join(root, "packages/core/src/index.ts"),
+      "pageforge-benchmark": path.join(root, "packages/benchmark/src/index.ts"),
+    },
   },
   test: {
     include: ["packages/*/test/**/*.test.ts", "apps/*/test/**/*.test.ts"],

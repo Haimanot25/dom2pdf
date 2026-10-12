@@ -1,16 +1,17 @@
 # CLI reference
 
-The `pageforge` binary lives in `apps/cli` and contains **no conversion
-logic** — every command delegates to the `pageforge-pdf` library. In this
-repository run it as `pnpm pageforge …`.
+The `pageforge` binary lives in `apps/cli` and contains **no conversion or
+benchmark logic** — `convert` and `inspect` delegate to the `pageforge-pdf`
+library, `benchmark` to `pageforge-benchmark`. In this repository run it as
+`pnpm pageforge …`.
 
 ## Exit codes (stable contract)
 
 | Code | Meaning |
 | --- | --- |
-| `0` | Success |
+| `0` | Success (a benchmark with `skipped` engines is still success) |
 | `2` | Usage error: unknown command/flag, missing or invalid argument |
-| `3` | Conversion/inspection failed with a typed error |
+| `3` | Conversion/inspection failed with a typed error; benchmark failed (a required engine errored) |
 | `4` | Output rejected by a configured quality policy |
 | `130` | Cancelled with Ctrl-C (128 + SIGINT) |
 
@@ -116,10 +117,37 @@ pageforge inspect report.pdf --json
 
 A missing or unreadable file exits `3` (`INVALID_INPUT`).
 
+## `pageforge benchmark`
+
+Runs the deterministic multi-engine benchmark (PageForge, raw Playwright,
+html2pdf.js, WeasyPrint) — methodology, engines, and honesty rules are
+documented in [Benchmark](benchmark.md).
+
+```bash
+pageforge benchmark                                   # full suite, human table
+pageforge benchmark --json > report.json              # machine-readable report
+pageforge benchmark --iterations 3 --warmup 1         # timing controls
+pageforge benchmark --scenarios simple --engines pageforge,weasyprint
+pageforge benchmark --output report.json              # also write the JSON file
+```
+
+| Flag | Default | Maps to |
+| --- | --- | --- |
+| `--iterations <n>` | `5` | measured runs per engine/scenario |
+| `--warmup <n>` | `1` | warm-up runs excluded from statistics |
+| `--scenarios <list>` | all | comma-separated scenario names (unknown → exit 2) |
+| `--engines <list>` | all | comma-separated engine names (unknown → exit 2) |
+| `--output <path>` | — | write the JSON report to a file |
+| `--json` | — | print the JSON report on stdout (progress stays off stdout) |
+
+A missing external tool is an honest **skip** (`status: "skipped"` with the
+install hint), not an error. The command exits `3` only when a *required*
+engine — `pageforge` or its `playwright-raw` baseline — fails on a scenario.
+
 ## JSON formats
 
 - **Success:** the quality report (see [API](api.md#quality-report)) on
-  **stdout**.
+  **stdout** — for `benchmark`, the full [benchmark report](benchmark.md).
 - **Failure:** `{"error": {"name","code","message","details?"}}` on
   **stderr** — for quality failures `details` carries the `violations` and
   the full measured `report`.

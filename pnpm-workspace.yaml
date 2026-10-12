@@ -2,12 +2,19 @@ packages:
   - "packages/*"
   - "apps/*"
 
-# Dependencies that run build scripts and are trusted in this workspace.
-# (pnpm's minimumReleaseAge supply-chain guard excluded zod@4.6.6 because it
-# was published recently; pinned versions are reviewed at install time.)
+# pnpm's minimumReleaseAge supply-chain guard excluded zod@4.6.6 because it
+# was published recently; pinned versions are reviewed at install time.
 minimumReleaseAgeExclude:
   - zod@4.6.6
 
-onlyBuiltDependencies:
-  - "playwright"
-  - "esbuild"
+# Reviewed build-script decisions (pnpm 11+ replaced onlyBuiltDependencies /
+# ignoredBuiltDependencies with this map; any package with a build script that
+# is not listed here fails the install with ERR_PNPM_IGNORED_BUILDS).
+allowBuilds:
+  # Playwright downloads its Chromium on install; esbuild fetches its platform
+  # binary — both are needed for the toolchain to work.
+  playwright: true
+  esbuild: true
+  # core-js (transitive via html2pdf.js) only posts a funding notice from its
+  # postinstall — nothing the package needs, so the build stays denied.
+  core-js: false

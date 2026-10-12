@@ -1,0 +1,10 @@
+# Keep image builds lean: no git history, no test artifacts, no node_modules.
+.git
+.github
+node_modules
+**/node_modules
+test-results
+playwright-report
+**/dist
+*.log
+Dockerfile
