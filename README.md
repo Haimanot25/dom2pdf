@@ -2,7 +2,7 @@
 
 **PageForge** is an open-source HTML-to-PDF conversion engine built on Playwright's Chromium. It converts URLs, HTML strings, and explicitly-permitted local HTML files into PDFs that preserve website appearance as closely as the browser and the PDF format allow, keeping text selectable and searchable wherever possible.
 
-> **Status: pre-alpha (Phase 5 of 6).** This repository is under active construction. Both rendering modes work — `document` (print CSS) and `screen` (paper-fit output policy) — the readiness phase plus structured quality checks/policies are in place, the `pageforge` CLI (`convert`, `inspect`) is usable, and every conversion now runs behind an enforced request policy with resource limits. The `benchmark` subcommand arrives with the benchmark suite in Phase 6. See [Roadmap](#roadmap) — no feature is documented here before it works.
+> **Status: pre-alpha (Phase 6 of 6 — complete).** This repository is under active construction. Both rendering modes work — `document` (print CSS) and `screen` (paper-fit output policy) — the readiness phase plus structured quality checks/policies are in place, the `pageforge` CLI (`convert`, `inspect`, `benchmark`) and the local `pageforge-web` UI are usable, every conversion runs behind an enforced request policy with resource limits, CI runs the full gate, and the production Docker image keeps Chromium's sandbox on. See [Roadmap](#roadmap) — no feature is documented here before it works.
 
 ## Quick start
 
@@ -14,6 +14,11 @@ pnpm build
 pnpm pageforge convert https://example.com -o example.pdf
 pnpm pageforge convert ./report.html --format A4 --margin 15mm --json
 pnpm pageforge inspect example.pdf
+pnpm pageforge benchmark --iterations 3 --scenarios simple   # multi-engine benchmark
+
+# Local web UI — open the printed URL, paste a target URL, get a PDF
+pnpm web                                     # http://127.0.0.1:8787
+pnpm web --port 9000 --allow-loopback        # custom port; test localhost targets
 ```
 
 ```ts
@@ -102,6 +107,8 @@ Conversions accept an optional `signal: AbortSignal`; aborting fails fast with `
 - [API reference](docs/api.md) — every option, report checks/warnings, error codes
 - [CLI reference](docs/cli.md) — commands, flags, JSON formats, exit codes
 - [Security](docs/security.md) — enforced layers and the residual risks we document honestly
+- [Benchmark](docs/benchmark.md) — deterministic multi-engine methodology and honesty rules
+- [Releasing](docs/releasing.md) — versioning, the gate, publishing
 
 ## Development
 
@@ -124,7 +131,7 @@ Requires Node.js ≥ 22.13 (24 LTS recommended) and pnpm.
 3. ✅ **Phase 3 — Readiness & quality**: font/image/network/selector readiness under one deadline, observed resource diagnostics, text extraction checks, quality policies (`QUALITY_POLICY_FAILED`).
 4. ✅ **Phase 4 — CLI & documentation**: `pageforge convert|inspect` with `--help`, JSON reports, stable exit codes (0/2/3/4/130), SIGINT cancellation; guides under `docs/`.
 5. ✅ **Phase 5 — Security & reliability**: request-layer policies at the network layer (`BLOCKED_REDIRECT`, `BLOCKED_RESOURCE`, scripted-navigation blocks), resource limits (`RESOURCE_LIMIT_EXCEEDED`: requests, output bytes, fail-fast concurrency cap), credential redaction on error paths.
-6. **Phase 6 — Benchmark & alpha**: `pageforge benchmark`, deterministic fixtures, comparative benchmarks, CI, Docker, release docs.
+6. ✅ **Phase 6 — Benchmark & alpha**: `pageforge benchmark` (deterministic fixtures; PageForge vs raw-Playwright baseline vs html2pdf.js vs WeasyPrint with honest skips), GitHub Actions CI, production Docker image (sandbox on), release docs.
 
 ## License
 

@@ -3,6 +3,9 @@
 export { createConverter } from "./api/converter.js";
 export type { Converter, ConvertResult, ConvertOptions, CreateConverterOptions } from "./api/types.js";
 
+export { PAPER_FORMATS } from "./config/schema.js";
+export type { PaperFormat } from "./config/schema.js";
+
 export { PageForgeError, ERROR_CODES, isPageForgeError, toPageForgeError } from "./errors/index.js";
 export type { ErrorCode, PageForgeErrorOptions } from "./errors/index.js";
 

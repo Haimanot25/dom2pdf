@@ -1,0 +1,25 @@
+{
+  "name": "pageforge-web",
+  "version": "0.1.0-alpha.0",
+  "private": true,
+  "description": "PageForge — local web UI: convert a target URL to PDF from your browser",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "pageforge-web": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "commander": "15.0.0",
+    "pageforge-pdf": "workspace:*"
+  }
+}
