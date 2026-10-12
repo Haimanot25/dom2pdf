@@ -248,6 +248,83 @@ test.describe("convert: deadlines and lifecycle", () => {
   });
 });
 
+test.describe("readiness: lazy drain and per-image patience", () => {
+  test("drains lazy-loaded content before capture (default on)", async () => {
+    const result = await converter.convert({
+      input: { type: "url", url: `${server.origin}/lazy-load.html` },
+      security: { allowLoopback: true },
+    });
+    const pageText = (await extractPdfText(result.bytes)).join("");
+    // The marker only flips when the below-the-fold image was scrolled into
+    // view and actually loaded — without the sweep it prints blank.
+    expect(pageText).toContain("lazy image loaded");
+    expect(pageText).not.toContain("lazy image not loaded");
+    expect(result.report.warnings.some((w) => w.code === "resources.lazy-load-truncated")).toBe(false);
+  });
+
+  test("lazyLoad: false leaves scroll-loaded content unloaded", async () => {
+    const result = await converter.convert({
+      input: { type: "url", url: `${server.origin}/lazy-load.html` },
+      security: { allowLoopback: true },
+      readiness: { lazyLoad: false },
+    });
+    const pageText = (await extractPdfText(result.bytes)).join("");
+    expect(pageText).toContain("lazy image not loaded");
+  });
+
+  test("a hanging image costs a resources.slow warning, not the conversion", async () => {
+    const result = await converter.convert({
+      input: { type: "url", url: `${server.origin}/slow-image.html` },
+      security: { allowLoopback: true },
+      // The image takes 6s; patience 1.2s — success proves readiness stopped
+      // blocking on it, and the report says exactly which asset was given up.
+      readiness: { slowResourceMs: 1_200, timeoutMs: 15_000 },
+    });
+    expect(result.report.status).toBe("succeeded");
+    const slow = result.report.warnings.filter((w) => w.code === "resources.slow");
+    expect(slow).toHaveLength(1);
+    expect(slow[0]?.message).toContain("slow.png");
+    const pageText = (await extractPdfText(result.bytes)).join("");
+    expect(pageText).toContain("slow image page");
+  });
+
+  test("slowResourceMs: 0 restores blocking until the shared deadline", async () => {
+    await expect(
+      converter.convert({
+        input: { type: "url", url: `${server.origin}/slow-image.html` },
+        security: { allowLoopback: true },
+        readiness: { slowResourceMs: 0, timeoutMs: 2_500 },
+      }),
+    ).rejects.toMatchObject({ code: "READINESS_TIMEOUT" });
+  });
+
+  test("a readiness deadline never leaves an unhandled rejection", async () => {
+    // Regression: an abandoned readiness poll (in-flight `page.evaluate`)
+    // once rejected "Target closed" with no handler after the deadline fired,
+    // which killed the hosting Node process — the web UI died mid-conversion.
+    const surfaced: unknown[] = [];
+    const onUnhandled = (reason: unknown): void => {
+      surfaced.push(reason);
+    };
+    process.on("unhandledRejection", onUnhandled);
+    try {
+      await expect(
+        converter.convert({
+          input: { type: "url", url: `${server.origin}/slow-image.html` },
+          security: { allowLoopback: true },
+          readiness: { slowResourceMs: 0, timeoutMs: 1_000 },
+        }),
+      ).rejects.toMatchObject({ code: "READINESS_TIMEOUT" });
+      // The abandoned poll settles only when the context closes — give it
+      // time to (wrongly) surface, then assert nothing did.
+      await new Promise((resolve) => setTimeout(resolve, 750));
+      expect(surfaced).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+    }
+  });
+});
+
 test.describe("converter lifecycle", () => {
   test("close() is safe and later conversions are rejected", async () => {
     const dedicated = await createConverter();

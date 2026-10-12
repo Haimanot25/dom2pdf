@@ -31,6 +31,23 @@ program
   .parse();
 const flags = program.opts<WebFlags>();
 
+// A long-lived conversion daemon must not die from one stray promise
+// rejection: Node's default unhandled-rejection behavior terminates the
+// process, which once took this whole UI down mid-conversion (an abandoned
+// readiness poll rejected "Target closed" after a deadline fired). Conversions
+// are isolated per browser context, so logging loudly and staying up is sound.
+process.on("unhandledRejection", (reason) => {
+  const detail = reason instanceof Error ? (reason.stack ?? reason.message) : String(reason);
+  console.error(`[pageforge-web] unhandled promise rejection (kept running):\n${detail}`);
+});
+
+// After an uncaught *exception* the process state is undefined — log and exit
+// so the user restarts cleanly instead of being served garbage.
+process.on("uncaughtException", (error) => {
+  console.error(`[pageforge-web] uncaught exception, exiting:\n${error.stack ?? error.message}`);
+  process.exit(1);
+});
+
 const port = Number(flags.port);
 if (!Number.isInteger(port) || port < 0 || port > 65_535) {
   console.error(`Error: --port must be an integer between 0 and 65535; received "${flags.port}"`);

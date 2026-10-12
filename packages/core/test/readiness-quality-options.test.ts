@@ -25,6 +25,8 @@ describe("readiness options", () => {
       fonts: true,
       waitForFonts: [],
       images: true,
+      slowResourceMs: 10_000,
+      lazyLoad: true,
       networkIdleMs: 300,
       selector: undefined,
       settleMs: 0,
@@ -39,6 +41,8 @@ describe("readiness options", () => {
         fonts: false,
         waitForFonts: ["Inter", "JetBrains Mono"],
         images: false,
+        slowResourceMs: 2_500,
+        lazyLoad: false,
         networkIdleMs: 0,
         selector: "#app",
         settleMs: 1_000,
@@ -49,6 +53,8 @@ describe("readiness options", () => {
       fonts: false,
       waitForFonts: ["Inter", "JetBrains Mono"],
       images: false,
+      slowResourceMs: 2_500,
+      lazyLoad: false,
       networkIdleMs: 0,
       selector: "#app",
       settleMs: 1_000,
@@ -66,6 +72,10 @@ describe("readiness options", () => {
   it("rejects out-of-range values with INVALID_INPUT", () => {
     expectCode(
       () => parseConvertOptions({ input: htmlInput, readiness: { networkIdleMs: -1 } }),
+      "INVALID_INPUT",
+    );
+    expectCode(
+      () => parseConvertOptions({ input: htmlInput, readiness: { slowResourceMs: -1 } }),
       "INVALID_INPUT",
     );
     expectCode(

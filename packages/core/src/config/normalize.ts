@@ -21,6 +21,8 @@ export const DEFAULTS = {
   readinessImages: true,
   readinessNetworkIdleMs: 300,
   readinessSettleMs: 0,
+  readinessSlowResourceMs: 10_000,
+  readinessLazyLoad: true,
   /** Safety rails on resource usage per conversion. */
   limitsMaxRequests: 500,
 } as const;
@@ -55,6 +57,10 @@ export interface NormalizedReadinessOptions {
   fonts: boolean;
   waitForFonts: string[];
   images: boolean;
+  /** Individual per-image patience in ms; `0` disables (block until `timeoutMs`). */
+  slowResourceMs: number;
+  /** Scroll-sweep for lazy-loaded content before the other checks. */
+  lazyLoad: boolean;
   /** `0` disables the network-idle check. */
   networkIdleMs: number;
   selector: string | undefined;
@@ -226,6 +232,8 @@ export function normalizeOptions(raw: unknown): NormalizedOptions {
       fonts: parsed.readiness?.fonts ?? DEFAULTS.readinessFonts,
       waitForFonts: [...(parsed.readiness?.waitForFonts ?? [])],
       images: parsed.readiness?.images ?? DEFAULTS.readinessImages,
+      slowResourceMs: parsed.readiness?.slowResourceMs ?? DEFAULTS.readinessSlowResourceMs,
+      lazyLoad: parsed.readiness?.lazyLoad ?? DEFAULTS.readinessLazyLoad,
       networkIdleMs: parsed.readiness?.networkIdleMs ?? DEFAULTS.readinessNetworkIdleMs,
       selector: parsed.readiness?.selector,
       settleMs: parsed.readiness?.settleMs ?? DEFAULTS.readinessSettleMs,

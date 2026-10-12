@@ -21,6 +21,28 @@ export interface NetworkActivity {
   lastActivityAt(): number;
   /** http(s) requests that started but have not received a response or failed. */
   inFlight(): number;
+  /**
+   * Epoch ms an http(s) request with this exact URL started, if it is still
+   * in flight. Lets readiness apply *per-resource* patience (a resource that
+   * started 12s ago is out of patience; one that started 200ms ago is not)
+   * instead of one global stage deadline.
+   */
+  requestStartAt(url: string): number | undefined;
+  /**
+   * In-flight requests that started less than `maxAgeMs` ago. `undefined`
+   * counts every in-flight request. Requests older than the per-resource
+   * patience are presumed hung — they must not block network quiet, or a
+   * single hanging asset would re-create the very deadline trap the patience
+   * exists to avoid.
+   */
+  inFlightRecent(maxAgeMs: number | undefined): number;
+  /**
+   * Absolute URLs of in-flight requests that are at least `maxAgeMs` old —
+   * the hung assets readiness stopped waiting for. Reported as `resources.slow`
+   * warnings so giving up is visible, never silent. Empty when patience is
+   * disabled (`maxAgeMs` undefined/0).
+   */
+  stalledUrls(maxAgeMs: number | undefined): string[];
 }
 
 export interface ResourceIssue {
@@ -54,6 +76,7 @@ function isFavicon(url: string): boolean {
 
 export function trackResources(page: Page): ResourceTracker {
   const issues: ResourceIssue[] = [];
+  const requestStarts = new Map<string, number>();
   let inFlight = 0;
   let lastActivityAt = Date.now();
 
@@ -63,15 +86,17 @@ export function trackResources(page: Page): ResourceTracker {
   const onRequest = (request: Request): void => {
     if (!isHttpUrl(request.url())) return;
     inFlight += 1;
+    requestStarts.set(request.url(), Date.now());
     lastActivityAt = Date.now();
   };
-  const onSettled = (): void => {
+  const onSettled = (url: string): void => {
     inFlight = Math.max(0, inFlight - 1);
+    requestStarts.delete(url);
     lastActivityAt = Date.now();
   };
   const onResponse = (response: Response): void => {
     if (!isHttpUrl(response.url())) return;
-    onSettled();
+    onSettled(response.url());
     const url = response.url();
     if (response.status() >= 400 && !isFavicon(url)) {
       issues.push({ kind: "http-error", url: sanitizeUrl(url), status: response.status() });
@@ -79,7 +104,7 @@ export function trackResources(page: Page): ResourceTracker {
   };
   const onRequestFailed = (request: Request): void => {
     if (!isHttpUrl(request.url())) return;
-    onSettled();
+    onSettled(request.url());
     const url = request.url();
     if (isFavicon(url)) return;
     const errorText = request.failure()?.errorText;
@@ -99,6 +124,25 @@ export function trackResources(page: Page): ResourceTracker {
     issues: () => [...issues],
     lastActivityAt: () => lastActivityAt,
     inFlight: () => inFlight,
+    requestStartAt: (url: string) => requestStarts.get(url),
+    inFlightRecent: (maxAgeMs: number | undefined) => {
+      if (maxAgeMs === undefined) return inFlight;
+      const cutoff = Date.now() - maxAgeMs;
+      let recent = 0;
+      for (const startedAt of requestStarts.values()) {
+        if (startedAt >= cutoff) recent += 1;
+      }
+      return recent;
+    },
+    stalledUrls: (maxAgeMs: number | undefined) => {
+      if (maxAgeMs === undefined || maxAgeMs <= 0) return [];
+      const cutoff = Date.now() - maxAgeMs;
+      const stalled: string[] = [];
+      for (const [url, startedAt] of requestStarts) {
+        if (startedAt < cutoff) stalled.push(url);
+      }
+      return stalled;
+    },
     dispose: () => {
       if (disposed) return;
       disposed = true;

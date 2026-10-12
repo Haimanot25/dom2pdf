@@ -10,6 +10,12 @@ function isTimeoutError(value: unknown): boolean {
 /**
  * Loads the planned input into the page within `timeoutMs`.
  *
+ * Navigation waits for DOMContentLoaded, not the full `load` event: subresource
+ * settling (images, fonts, network quiet) is the readiness phase's job, where
+ * each pending resource gets its own `slowResourceMs` patience. Waiting for
+ * `load` here would let one hanging image in the initial document spend the
+ * entire deadline before readiness could even start.
+ *
  * - Navigation timeouts map to `READINESS_TIMEOUT` (they consume the overall
  *   readiness deadline).
  * - Other navigation failures map to `NAVIGATION_FAILED` with the cause kept.
@@ -18,7 +24,7 @@ export async function applyInput(page: Page, plan: InputPlan, timeoutMs: number)
   if (plan.kind === "navigate") {
     let response: Response | null;
     try {
-      response = await page.goto(plan.url, { waitUntil: "load", timeout: timeoutMs });
+      response = await page.goto(plan.url, { waitUntil: "domcontentloaded", timeout: timeoutMs });
     } catch (cause) {
       throw wrapNavigationFailure(cause, { url: sanitizeUrl(plan.url), source: plan.source, timeoutMs });
     }
@@ -37,7 +43,7 @@ export async function applyInput(page: Page, plan: InputPlan, timeoutMs: number)
 
   const html = plan.baseUrl !== undefined ? injectBaseHref(plan.html, plan.baseUrl) : plan.html;
   try {
-    await page.setContent(html, { waitUntil: "load", timeout: timeoutMs });
+    await page.setContent(html, { waitUntil: "domcontentloaded", timeout: timeoutMs });
   } catch (cause) {
     throw wrapNavigationFailure(
       cause,

@@ -95,6 +95,46 @@ export async function startFixtureServer(rootDir: string = FIXTURES_DIR): Promis
           return;
         }
 
+        // Test-only lazy page: tall scroll spacer, a status marker, and an
+        // image that only starts loading when it intersects the viewport
+        // (IntersectionObserver — same mechanism real lazy frameworks use;
+        // print capture alone cannot trigger it). The drain sweep must scroll
+        // it into view; the marker text proves which path happened.
+        if (pathname === "/lazy-load.html") {
+          res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+          res.end(`<!doctype html><title>lazy</title><style>body{margin:0}</style>
+<div style="height:2500px">long spacer</div>
+<p id="status">lazy image not loaded</p>
+<img id="lazyImg" data-src="/__delay/0/lazy.png" alt="lazy" style="display:block;width:40px;height:40px">
+<div style="height:900px"></div>
+<script>
+  var img = document.getElementById("lazyImg");
+  var io = new IntersectionObserver(function (entries) {
+    for (var i = 0; i < entries.length; i++) {
+      if (entries[i].isIntersecting) {
+        img.src = img.getAttribute("data-src");
+        io.disconnect();
+      }
+    }
+  });
+  io.observe(img);
+  img.addEventListener("load", function () {
+    document.getElementById("status").textContent = "lazy image loaded";
+  });
+</script>`);
+          return;
+        }
+
+        // Test-only hanging image: the PNG arrives after 6s, longer than any
+        // patience used in tests — exercises per-image patience both ways.
+        if (pathname === "/slow-image.html") {
+          res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+          res.end(
+            '<!doctype html><title>slow</title><p>slow image page</p><img src="/__delay/6000/slow.png" alt="slow" style="display:block;width:20px;height:20px">',
+          );
+          return;
+        }
+
         const resolved = path.resolve(root, `.${pathname}`);
         const insideRoot = resolved === root || resolved.startsWith(root + path.sep);
         if (!insideRoot) {

@@ -61,3 +61,23 @@ First public alpha — the six-phase foundation, in order:
   production sites and WAFs frequently serve 403/500 pages to that string.
   This changes the UA string only — TLS/HTTP2 fingerprints still identify an
   automated browser; it is a compatibility shim, not an anonymity control.
+
+### Phase 7 — Adaptive readiness
+- Per-resource patience: new `readiness.slowResourceMs` (default 10s, `0`
+  disables). A pending image that outlives its individual patience no longer
+  spends the shared deadline — the conversion proceeds with a `resources.slow`
+  warning naming the asset, and network quiet ignores requests older than the
+  patience so a hung asset cannot re-block the idle check.
+- Lazy-load drain: new `readiness.lazyLoad` (default `true`). Scrollable
+  documents that declare lazy markers are swept with bounded scroll steps
+  before the other checks so `loading="lazy"`/`data-src` content is actually
+  fetched; scroll position is restored, and a sweep that hits its step limit
+  reports `resources.lazy-load-truncated`.
+- Navigation now waits for DOMContentLoaded; subresource settling belongs to
+  the readiness phase (where patience applies). A hanging asset in the initial
+  document is a warned slow resource instead of a navigation-stage timeout.
+- Bug fix: a readiness poll abandoned by a firing deadline could reject
+  unhandled ("Target closed") after its context closed, terminating the host
+  Node process — found via the web UI dying mid-conversion. `withDeadline`
+  now abandons in-flight work safely, with a regression test; the web UI also
+  logs stray rejections instead of exiting.

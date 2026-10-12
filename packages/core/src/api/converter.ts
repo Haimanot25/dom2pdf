@@ -77,19 +77,43 @@ function resourceDiagnostics(
       message: `Font famil(ies) the browser reports as unavailable: ${previewList(readiness.unavailableFonts)}`,
     });
   }
+  const slowImages = readiness.images.slowUrls.map((url) => sanitizeUrl(url));
+  const slowImageSet = new Set(slowImages);
+  // `stalledUrls` includes the slow images' own requests — keep each URL once.
+  const stalledRequests = readiness.stalledUrls
+    .map((url) => sanitizeUrl(url))
+    .filter((url) => !slowImageSet.has(url));
+  const slowAssets = slowImages.length + stalledRequests.length;
+  if (slowAssets > 0) {
+    const parts: string[] = [];
+    if (slowImages.length > 0) parts.push(`${slowImages.length} image(s) still pending`);
+    if (stalledRequests.length > 0) parts.push(`${stalledRequests.length} request(s) still in flight`);
+    warnings.push({
+      code: "resources.slow",
+      source: "observed",
+      message: `${parts.join(" and ")} after their individual patience — the PDF may render them blank or incomplete: ${previewList([...slowImages, ...stalledRequests])}`,
+    });
+  }
+  if (readiness.lazy.truncated) {
+    warnings.push({
+      code: "resources.lazy-load-truncated",
+      source: "heuristic",
+      message: `The lazy-load sweep reached its step limit (${readiness.lazy.steps} steps); content added by infinite scroll beyond that may be missing images`,
+    });
+  }
 
-  const problemCount = failed.length + httpErrors.length + brokenImages.length;
+  const problemCount = failed.length + httpErrors.length + brokenImages.length + slowAssets;
   const check: QualityCheck =
     problemCount === 0
       ? {
           id: "resources",
           status: "pass",
-          detail: "no failed requests, HTTP errors, or broken images",
+          detail: "no failed requests, HTTP errors, broken images, or slow resources",
         }
       : {
           id: "resources",
           status: "warn",
-          detail: `${failed.length} failed request(s), ${httpErrors.length} HTTP error(s), ${brokenImages.length} broken image(s)`,
+          detail: `${failed.length} failed request(s), ${httpErrors.length} HTTP error(s), ${brokenImages.length} broken image(s), ${slowAssets} slow asset(s)`,
           recommendation:
             "Check the URLs listed in the report warnings; missing assets render as placeholders in the PDF",
         };

@@ -71,15 +71,21 @@ Unknown keys are rejected with `UNSUPPORTED_OPTION` — never silently ignored.
 #### `readiness` options
 
 All stages share **one deadline** (`timeoutMs`); whichever stage gives out is
-named in the `READINESS_TIMEOUT` error (`details.stage`).
+named in the `READINESS_TIMEOUT` error (`details.stage`). Waiting is
+*adaptive*: each pending resource gets its own `slowResourceMs` patience, and
+a hung asset costs a `resources.slow` warning instead of the whole conversion.
+Navigation itself waits for DOMContentLoaded only — settling subresources is
+what the readiness phase is for.
 
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `timeoutMs` | int (≤ 30 min) | `30000` | Overall deadline: input prep → navigation → readiness |
 | `fonts` | boolean | `true` | Await `document.fonts.ready` |
 | `waitForFonts` | `string[]` | `[]` | Wait for declared `@font-face` families; failures become `resources.font-unavailable` warnings |
-| `images` | boolean | `true` | Wait until every `<img>` finished (failed = finished) |
-| `networkIdleMs` | int, `0` disables | `300` | No network activity for this long; uses a tracker attached **before** navigation, so in-flight requests count. Chatty pages (long polling) hit `READINESS_TIMEOUT` unless disabled |
+| `images` | boolean | `true` | Wait until every `<img>` finished (failed = finished; each image is given `slowResourceMs` individual patience) |
+| `slowResourceMs` | int, `0` disables | `10000` | Individual patience for a still-pending resource. Out-of-patience images (and other hung requests) no longer block; the conversion proceeds with a `resources.slow` warning naming them. `0` restores blocking until `timeoutMs` |
+| `lazyLoad` | boolean | `true` | Before the other checks, sweep-scroll scrollable documents that declare lazy markers (`loading="lazy"`, `data-src`, …) so scroll-loaded content is actually fetched. Bounded by step count, per-step quiet windows, the request cap, and the deadline; a sweep that hits the step limit reports `resources.lazy-load-truncated` |
+| `networkIdleMs` | int, `0` disables | `300` | No network activity for this long; uses a tracker attached **before** navigation, so in-flight requests count. Requests older than `slowResourceMs` count as hung and do not block. Pages that keep *starting* requests (long polling) hit `READINESS_TIMEOUT` unless disabled |
 | `selector` | string | — | Wait until a CSS selector is **visible** |
 | `settleMs` | int | `0` | Extra quiet period after the other checks |
 

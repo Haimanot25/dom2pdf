@@ -123,6 +123,25 @@ export const readinessSchema = z.strictObject({
   /** Wait until every `<img>` has finished loading (failed images count as finished). Default `true`. */
   images: z.boolean().optional(),
   /**
+   * Individual patience (ms) for a still-pending image. When one image
+   * outlasts it — a hanging asset, an endpoint that streams forever — the
+   * readiness phase stops blocking on that image and the conversion proceeds
+   * with a `resources.slow` warning, instead of spending the whole shared
+   * deadline and failing. `0` disables the per-image patience (a pending
+   * image then blocks until the overall `timeoutMs`, the pre-0.7 behavior).
+   * Default `10000`.
+   */
+  slowResourceMs: z.number().int().min(0).max(300_000).optional(),
+  /**
+   * Before the other checks, sweep scroll the page to trigger lazy-loaded
+   * content (`loading="lazy"` images/iframes and `data-src`-style markup)
+   * that would otherwise never load and render blank below the fold. Only
+   * runs when the document is scrollable *and* declares lazy markers;
+   * bounded by step count, per-step quiet windows, the request cap, and the
+   * overall deadline. Default `true`.
+   */
+  lazyLoad: z.boolean().optional(),
+  /**
    * Consider the page ready after this many milliseconds without network
    * activity. `0` disables the check. Default `300`.
    */
