@@ -33,6 +33,17 @@ export function sanitizeUrl(input: string | URL): string {
   return result.endsWith("?") ? result.slice(0, -1) : result;
 }
 
+/**
+ * Scrubs `scheme://user:password@host` userinfo from free-form error text.
+ * Playwright net errors embed the request URL verbatim (credentials included);
+ * anything used as a human-readable message must go through this. The
+ * `//…@` shape anchors it so prose like an email address (no leading `//`) is
+ * left alone.
+ */
+export function redactUrlCredentials(text: string): string {
+  return text.replace(/\/\/[^/\s:@]+(?::[^/\s@]*)?@/g, "//REDACTED@");
+}
+
 /** Escapes a value for safe interpolation into a double-quoted HTML attribute. */
 export function escapeHtmlAttribute(value: string): string {
   return value

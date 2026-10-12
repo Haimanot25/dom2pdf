@@ -152,11 +152,14 @@ export interface ConvertFlags {
   failOnWarnings?: boolean;
   allowLoopback?: boolean;
   allowPrivateNetwork?: boolean;
+  maxRequests?: string;
+  maxOutputBytes?: string;
+  maxConcurrent?: string;
   json?: boolean;
   quiet?: boolean;
 }
 
-function parseIntFlag(name: string, value: string): number {
+export function parseIntFlag(name: string, value: string): number {
   const parsed = Number(value);
   if (!Number.isInteger(parsed)) {
     throw new UsageError(`--${name} must be an integer; received "${value}"`);
@@ -208,6 +211,14 @@ export function buildConvertOptions(
   if (flags.allowLoopback === true) security["allowLoopback"] = true;
   if (flags.allowPrivateNetwork === true) security["allowPrivateNetwork"] = true;
 
+  const limits: Record<string, unknown> = {};
+  if (flags.maxRequests !== undefined) {
+    limits["maxRequests"] = parseIntFlag("max-requests", flags.maxRequests);
+  }
+  if (flags.maxOutputBytes !== undefined) {
+    limits["maxOutputBytes"] = parseIntFlag("max-output-bytes", flags.maxOutputBytes);
+  }
+
   const options: ConvertOptions = { input };
   if (flags.mode !== undefined) options.mode = flags.mode;
   if (Object.keys(pdf).length > 0) options.pdf = pdf as ConvertOptions["pdf"];
@@ -219,6 +230,7 @@ export function buildConvertOptions(
     options.render = { timeoutMs: parseIntFlag("render-timeout", flags.renderTimeout) };
   }
   if (Object.keys(quality).length > 0) options.quality = quality as ConvertOptions["quality"];
+  if (Object.keys(limits).length > 0) options.limits = limits as ConvertOptions["limits"];
   if (Object.keys(security).length > 0) options.security = security as ConvertOptions["security"];
   return options;
 }

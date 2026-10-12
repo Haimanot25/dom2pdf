@@ -132,6 +132,32 @@ test.describe("pageforge CLI", () => {
     expect(result.stderr).toContain("BLOCKED_URL");
   });
 
+  test("--max-output-bytes caps the output with RESOURCE_LIMIT_EXCEEDED (exit 3)", async () => {
+    const result = await runCli([
+      "convert",
+      "fixtures/basic-text.html",
+      "-o",
+      path.join(workDir, "capped.pdf"),
+      "--max-output-bytes",
+      "100",
+    ]);
+    expect(result.code).toBe(3);
+    expect(result.stderr).toContain("RESOURCE_LIMIT_EXCEEDED");
+  });
+
+  test("invalid limit flags are usage errors (exit 2)", async () => {
+    const result = await runCli([
+      "convert",
+      "fixtures/basic-text.html",
+      "-o",
+      path.join(workDir, "unused.pdf"),
+      "--max-requests",
+      "abc",
+    ]);
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain("--max-requests");
+  });
+
   test("quality policy rejection exits 4; --json carries the measured report", async () => {
     const plain = await runCli([
       "convert",

@@ -9,6 +9,7 @@ import {
   exitCodeFor,
   formatBytes,
   parseMargin,
+  parseIntFlag,
   parseViewport,
   resolveInputSource,
   UsageError,
@@ -150,10 +151,29 @@ describe("buildConvertOptions", () => {
     expect(options.security).toBeUndefined();
   });
 
+  it("maps resource-limit flags onto the limits option", () => {
+    const options = buildConvertOptions(
+      flags({ maxRequests: "25", maxOutputBytes: "65536" }),
+      { kind: "url", url: "https://example.com" },
+      STDIN_HTML,
+    );
+    expect(options.limits).toEqual({ maxRequests: 25, maxOutputBytes: 65536 });
+  });
+
+  it("leaves limits unset when the flags are absent", () => {
+    const options = buildConvertOptions(flags(), { kind: "url", url: "https://example.com" }, STDIN_HTML);
+    expect(options.limits).toBeUndefined();
+  });
+
   it("rejects non-integer numeric flags", () => {
     expect(() => buildConvertOptions(flags({ minPages: "2.5" }), { kind: "stdin" }, STDIN_HTML)).toThrow(
       UsageError,
     );
+    expect(() => buildConvertOptions(flags({ maxRequests: "ten" }), { kind: "stdin" }, STDIN_HTML)).toThrow(
+      UsageError,
+    );
+    expect(() => parseIntFlag("max-concurrent", "1.5")).toThrow(UsageError);
+    expect(parseIntFlag("max-concurrent", "3")).toBe(3);
   });
 });
 

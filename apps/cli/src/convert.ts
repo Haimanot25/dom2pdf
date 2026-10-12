@@ -4,6 +4,7 @@ import { createConverter, createSilentLogger, type QualityReport } from "pagefor
 import {
   buildConvertOptions,
   formatBytes,
+  parseIntFlag,
   resolveInputSource,
   UsageError,
   type ConvertFlags,
@@ -59,6 +60,9 @@ export function registerConvertCommand(program: Command): void {
     .option("--fail-on-warnings", "quality policy: reject output that produced warnings")
     .option("--allow-loopback", "permit loopback URLs (localhost, 127.0.0.0/8, ::1)")
     .option("--allow-private-network", "permit RFC1918/link-local destinations")
+    .option("--max-requests <n>", "limit: max http(s) requests per conversion (default 500)", undefined)
+    .option("--max-output-bytes <n>", "limit: hard cap on generated PDF size in bytes", undefined)
+    .option("--max-concurrent <n>", "limit: conversions allowed at once on this converter", undefined)
     .option("--json", "print the structured quality report as JSON on stdout")
     .option("--quiet", "suppress success output (errors still go to stderr)")
     .action(async (source: string | undefined, flags: ConvertFlags) => {
@@ -70,6 +74,9 @@ export function registerConvertCommand(program: Command): void {
       process.once("SIGINT", onSignal);
       const converter = await createConverter({
         ...(flags.quiet === true ? { logger: createSilentLogger() } : {}),
+        ...(flags.maxConcurrent !== undefined
+          ? { limits: { maxConcurrentConversions: parseIntFlag("max-concurrent", flags.maxConcurrent) } }
+          : {}),
       });
       try {
         const result = await converter.convert({ ...options, signal: controller.signal });

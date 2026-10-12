@@ -47,6 +47,19 @@ export async function startFixtureServer(rootDir: string = FIXTURES_DIR): Promis
           return;
         }
 
+        // Test-only open redirect: /redirect-to?url=<absolute URL> answers 302,
+        // so redirect-hop policy enforcement can be exercised for real.
+        if (pathname === "/redirect-to") {
+          const target = requestUrl.searchParams.get("url");
+          if (target === null || target.length === 0) {
+            res.writeHead(400, { "content-type": "text/plain; charset=utf-8" }).end("missing url");
+            return;
+          }
+          res.writeHead(302, { location: target, "cache-control": "no-store" });
+          res.end();
+          return;
+        }
+
         // Test-only latency injection: /__delay/<ms>/<anything> stalls before
         // responding so readiness/timeout behavior can be exercised for real.
         const delayMatch = /^\/__delay\/(\d+)(?:\/|$)/.exec(pathname);

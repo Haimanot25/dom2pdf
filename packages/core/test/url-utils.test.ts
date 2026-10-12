@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sanitizeUrl, escapeHtmlAttribute, sanitizeBytesForDisplay } from "../src/utils/url.js";
+import { redactUrlCredentials, sanitizeUrl, escapeHtmlAttribute, sanitizeBytesForDisplay } from "../src/utils/url.js";
 
 describe("sanitizeUrl", () => {
   it("removes userinfo credentials", () => {
@@ -24,6 +24,19 @@ describe("sanitizeUrl", () => {
   it("never throws on malformed input", () => {
     expect(typeof sanitizeUrl("::::not a url")).toBe("string");
     expect(sanitizeUrl("x".repeat(500)).length).toBeLessThanOrEqual(201);
+  });
+});
+
+describe("redactUrlCredentials", () => {
+  it("strips userinfo that Playwright embeds in net-error text", () => {
+    const scrubbed = redactUrlCredentials("net::ERR_FAILED at http://user:secret@10.0.0.1/steal");
+    expect(scrubbed).toBe("net::ERR_FAILED at http://REDACTED@10.0.0.1/steal");
+    expect(scrubbed).not.toContain("secret");
+  });
+
+  it("handles username-only userinfo and leaves credential-free text alone", () => {
+    expect(redactUrlCredentials("at http://user@host.example/p")).toBe("at http://REDACTED@host.example/p");
+    expect(redactUrlCredentials("timeout contacting admin@example.com")).toBe("timeout contacting admin@example.com");
   });
 });
 

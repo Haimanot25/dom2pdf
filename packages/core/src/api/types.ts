@@ -33,6 +33,15 @@ export interface CreateConverterOptions {
     /** Launch timeout in ms (default 60000). */
     launchTimeoutMs?: number;
   };
+  limits?: {
+    /**
+     * Fail-fast cap on conversions running at the same time on this converter
+     * with `RESOURCE_LIMIT_EXCEEDED` (no queuing). Unlimited by default.
+     * Isolation between jobs is unaffected: each conversion still gets its own
+     * browser context.
+     */
+    maxConcurrentConversions?: number;
+  };
   /** Custom logger; defaults to a console logger at `warn` level. */
   logger?: Logger;
 }

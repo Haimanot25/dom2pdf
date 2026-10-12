@@ -72,6 +72,14 @@ pageforge convert ./invoice.html --min-pages 1 --max-pages 4 --json > report.jso
 | `--allow-loopback` | `security.allowLoopback` |
 | `--allow-private-network` | `security.allowPrivateNetwork` |
 
+**Limits** (each violation exits `3` with `RESOURCE_LIMIT_EXCEEDED`)
+
+| Flag | Maps to |
+| --- | --- |
+| `--max-requests <n>` | `limits.maxRequests` — http(s) requests per conversion (default 500) |
+| `--max-output-bytes <n>` | `limits.maxOutputBytes` — hard cap on the generated PDF |
+| `--max-concurrent <n>` | `createConverter({ limits: { maxConcurrentConversions } })` |
+
 Local files need no flag: passing a path on the command line is explicit
 consent, and the CLI grants only **that file's own directory**
 (`allowLocalFiles` + an allowlist of `dirname(source)`); the library still

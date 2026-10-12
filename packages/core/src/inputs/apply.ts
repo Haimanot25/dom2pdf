@@ -1,6 +1,6 @@
 import type { Page, Response } from "playwright";
 import { PageForgeError } from "../errors/index.js";
-import { sanitizeUrl } from "../utils/url.js";
+import { redactUrlCredentials, sanitizeUrl } from "../utils/url.js";
 import { injectBaseHref, type InputPlan } from "./resolve.js";
 
 function isTimeoutError(value: unknown): boolean {
@@ -48,7 +48,8 @@ export async function applyInput(page: Page, plan: InputPlan, timeoutMs: number)
 
 function wrapNavigationFailure(cause: unknown, details: Record<string, unknown>): PageForgeError {
   if (cause instanceof PageForgeError) return cause;
-  const message = cause instanceof Error ? cause.message : String(cause);
+  // Playwright net errors embed the request URL verbatim — credentials included.
+  const message = redactUrlCredentials(cause instanceof Error ? cause.message : String(cause));
   if (isTimeoutError(cause)) {
     return new PageForgeError({
       code: "READINESS_TIMEOUT",

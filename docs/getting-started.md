@@ -71,4 +71,4 @@ Exit codes are stable: `0` success, `2` usage error, `3` conversion failed,
 - [Rendering modes](modes.md) — `document` vs `screen`, output policies
 - [API reference](api.md) — every option, the report shape, error codes
 - [CLI reference](cli.md) — commands, flags, JSON formats, exit codes
-- [Security](security.md) — what is enforced today, what is not yet
+- [Security](security.md) — what is enforced today, and the residual risks we document honestly

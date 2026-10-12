@@ -156,6 +156,23 @@ export const qualitySchema = z
     }
   });
 
+export const limitsSchema = z.strictObject({
+  /**
+   * Maximum http(s) requests a single conversion may make (the browser-probed
+   * favicon is excluded). When exceeded, further requests are aborted at the
+   * network layer and the conversion fails with `RESOURCE_LIMIT_EXCEEDED`.
+   * Default `500`.
+   */
+  maxRequests: z.number().int().min(1).max(100_000).optional(),
+  /**
+   * Hard cap on generated PDF size in bytes, checked before inspection.
+   * Distinct from `quality.maxBytes`: a limit is a safety rail that fails the
+   * conversion outright, a quality policy is an expectation whose rejection
+   * carries the measured report.
+   */
+  maxOutputBytes: z.number().int().min(1).optional(),
+});
+
 export const renderSchema = z.strictObject({
   /** Deadline (ms) for PDF generation itself. */
   timeoutMs: z.number().int().positive().max(30 * 60_000).optional(),
@@ -227,6 +244,8 @@ export const convertOptionsSchema = z
     render: renderSchema.optional(),
     /** Output policy: measured values are checked after rendering; violations fail with `QUALITY_POLICY_FAILED`. */
     quality: qualitySchema.optional(),
+    /** Safety rails: network request and output size caps → `RESOURCE_LIMIT_EXCEEDED`. */
+    limits: limitsSchema.optional(),
     security: securitySchema.optional(),
     /** Cooperative cancellation: the conversion fails fast with `CANCELLED` when aborted. */
     signal: z.instanceof(AbortSignal).optional(),
@@ -266,4 +285,5 @@ export type InputOptions = z.output<typeof inputSchema>;
 export type PdfOptions = z.output<typeof pdfOptionsSchema>;
 export type SecurityOptions = z.output<typeof securitySchema>;
 export type QualityOptions = z.output<typeof qualitySchema>;
+export type LimitsOptions = z.output<typeof limitsSchema>;
 export type PaperFormat = (typeof PAPER_FORMATS)[number];

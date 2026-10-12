@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Many requests fixture</title>
+  </head>
+  <body>
+    <h1>Many requests fixture</h1>
+    <p>Issues 40 image requests so <code>limits.maxRequests</code> can be exercised.</p>
+    <script>
+      for (let i = 0; i < 40; i += 1) {
+        const img = document.createElement("img");
+        img.src = "/__delay/0/req-" + i + ".png";
+        document.body.appendChild(img);
+      }
+    </script>
+  </body>
+</html>

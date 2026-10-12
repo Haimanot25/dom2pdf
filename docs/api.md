@@ -10,6 +10,9 @@ const converter = await createConverter({
     sandbox: true,        // default true — Chromium's sandbox is never disabled by PageForge
     launchTimeoutMs: 60_000,
   },
+  limits: {
+    maxConcurrentConversions: 4, // optional fail-fast cap; unlimited by default
+  },
   logger: myLogger,       // optional; defaults to a warn-level console logger
 });
 ```
@@ -18,6 +21,11 @@ The Chromium process launches lazily on the first `convert()` and is reused
 across conversions; **every conversion gets a brand-new isolated browser
 context** (no cookie/storage leakage between jobs). Contexts are cleaned up on
 success, failure, timeout, and cancellation alike.
+
+`limits.maxConcurrentConversions` is fail-fast back-pressure, not a queue:
+while N conversions run, additional `convert()` calls reject immediately with
+`RESOURCE_LIMIT_EXCEEDED` (`details.limit = "maxConcurrentConversions"`), and
+the slot frees as soon as a conversion settles.
 
 `converter.close()` shuts the browser down; later conversions fail with
 `CONVERTER_CLOSED`. Calling `close()` twice is safe.
@@ -93,6 +101,17 @@ Measured after rendering; violations throw `QUALITY_POLICY_FAILED` with
 | `maxBytes` | output larger than requested |
 | `failOnWarnings` | report contains any warnings |
 
+#### `limits` options (safety rails)
+
+Unlike quality policies, limits fail the conversion outright with
+`RESOURCE_LIMIT_EXCEEDED` — they bound resource usage, not output
+expectations.
+
+| Key | Type | Default | Behavior |
+| --- | --- | --- | --- |
+| `maxRequests` | int 1–100000 | `500` | http(s) requests per conversion (favicon excluded); beyond the cap, requests are aborted at the network layer (`details.limit = "maxRequests"`) |
+| `maxOutputBytes` | int ≥ 1 | — | Generated PDF size checked before inspection (`details.limit = "maxOutputBytes"`) |
+
 #### `security` options
 
 See [security](security.md). Defaults are the strict ones:
@@ -124,6 +143,7 @@ interface QualityReport {
 | `readiness` | always | What actually ran: fonts/images/network idle/selector/settle + duration |
 | `resources` | always | Failed requests, HTTP ≥ 400, broken images |
 | `pdf-text` | always | Extractable character count (weak signal: presence, not reading order) |
+| `security.requests` | always | Requests intercepted and classified against destination policy, plus the configured cap |
 | `screen.output-policy` | screen mode | The measured paper-fit scale |
 
 ### Warning codes
@@ -151,15 +171,15 @@ minor releases, existing codes are not renamed within a major version.
 | --- | --- |
 | `INVALID_INPUT` | Bad value/type/cross-field conflict |
 | `UNSUPPORTED_OPTION` | Known but unimplemented option or unknown key |
-| `BLOCKED_URL` | Destination rejected by policy (protocol, private network, …) |
-| `BLOCKED_REDIRECT` | Reserved — redirect enforcement lands in Phase 5 |
-| `BLOCKED_RESOURCE` | Reserved — subresource enforcement lands in Phase 5 |
+| `BLOCKED_URL` | Destination rejected by policy (protocol, private network, …), including page-scripted navigations to blocked destinations |
+| `BLOCKED_REDIRECT` | A redirect landed on a destination rejected by security policy |
+| `BLOCKED_RESOURCE` | A subresource request (or subresource redirect) was rejected by security policy |
 | `LOCAL_FILE_NOT_ALLOWED` | File input without permission or outside the allowlist |
-| `NAVIGATION_FAILED` | Navigation failed (DNS, connection, HTTP ≥ 400, crash) |
+| `NAVIGATION_FAILED` | Navigation failed (DNS, connection, HTTP ≥ 400, crash, Chromium's own unsafe-redirect refusal) |
 | `READINESS_TIMEOUT` | Overall readiness deadline elapsed (`details.stage` names it) |
 | `RENDER_TIMEOUT` | `page.pdf()` exceeded its deadline |
 | `PDF_VALIDATION_FAILED` | Output failed structural validation |
-| `RESOURCE_LIMIT_EXCEEDED` | Reserved — configured limits land in Phase 5 |
+| `RESOURCE_LIMIT_EXCEEDED` | A configured limit was hit (`details.limit`: `maxRequests`, `maxOutputBytes`, `maxConcurrentConversions`) |
 | `CANCELLED` | Aborted via `AbortSignal`/SIGINT |
 | `BROWSER_FAILURE` | Chromium failed to launch/crashed/unexpected failure |
 | `QUALITY_POLICY_FAILED` | Output rejected by a quality policy |

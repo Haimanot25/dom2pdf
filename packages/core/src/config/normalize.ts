@@ -21,6 +21,8 @@ export const DEFAULTS = {
   readinessImages: true,
   readinessNetworkIdleMs: 300,
   readinessSettleMs: 0,
+  /** Safety rails on resource usage per conversion. */
+  limitsMaxRequests: 500,
 } as const;
 
 export interface NormalizedViewport {
@@ -78,6 +80,11 @@ export interface NormalizedSecurityOptions {
   allowPrivateNetwork: boolean;
 }
 
+export interface NormalizedLimits {
+  maxRequests: number;
+  maxOutputBytes: number | undefined;
+}
+
 export interface NormalizedOptions {
   input: InputOptions;
   mode: "document" | "screen";
@@ -88,6 +95,7 @@ export interface NormalizedOptions {
   readiness: NormalizedReadinessOptions;
   render: NormalizedRenderOptions;
   quality: NormalizedQualityOptions;
+  limits: NormalizedLimits;
   security: NormalizedSecurityOptions;
   signal: AbortSignal | undefined;
 }
@@ -223,6 +231,10 @@ export function normalizeOptions(raw: unknown): NormalizedOptions {
       maxPages: parsed.quality?.maxPages,
       maxBytes: parsed.quality?.maxBytes,
       failOnWarnings: parsed.quality?.failOnWarnings ?? false,
+    },
+    limits: {
+      maxRequests: parsed.limits?.maxRequests ?? DEFAULTS.limitsMaxRequests,
+      maxOutputBytes: parsed.limits?.maxOutputBytes,
     },
     security: {
       allowLocalFiles: parsed.security?.allowLocalFiles ?? false,

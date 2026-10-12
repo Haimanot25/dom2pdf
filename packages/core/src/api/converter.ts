@@ -1,8 +1,8 @@
 import { preparePage } from "../capture/prepare.js";
 import { BrowserManager } from "../browser/manager.js";
-import { normalizeOptions } from "../config/normalize.js";
+import { normalizeOptions, type NormalizedOptions } from "../config/normalize.js";
 import type { ConvertOptions } from "../config/schema.js";
-import { PageForgeError } from "../errors/index.js";
+import { isPageForgeError, PageForgeError } from "../errors/index.js";
 import { applyInput } from "../inputs/apply.js";
 import { prepareInput } from "../inputs/resolve.js";
 import { analyzeScreenLayout, layoutWarnings } from "../layout-analysis/analyze.js";
@@ -14,6 +14,7 @@ import { screenRenderer } from "../renderers/screen.js";
 import type { Renderer } from "../renderers/types.js";
 import { describeReadiness, waitForReadiness, type ReadinessResult } from "../readiness/wait.js";
 import { trackResources, type ResourceTracker } from "../readiness/tracking.js";
+import { installRequestGuard, type RequestGuard } from "../security/request-guard.js";
 import { raceWithAbort, throwIfAborted } from "../utils/cancellation.js";
 import { Deadline } from "../utils/deadline.js";
 import { createLogger, type Logger } from "../utils/logger.js";
@@ -97,10 +98,12 @@ function resourceDiagnostics(
 
 class ConverterImpl implements Converter {
   private closed = false;
+  private activeConversions = 0;
 
   constructor(
     private readonly browserManager: BrowserManager,
     private readonly logger: Logger,
+    private readonly maxConcurrentConversions: number | undefined,
   ) {}
 
   async convert(options: ConvertOptions): Promise<ConvertResult> {
@@ -111,6 +114,25 @@ class ConverterImpl implements Converter {
     const normalized = normalizeOptions(options);
     throwIfAborted(normalized.signal);
 
+    // Fail-fast back-pressure: no queuing, so callers control their own
+    // scheduling and never accumulate unbounded pending jobs.
+    const max = this.maxConcurrentConversions;
+    if (max !== undefined && this.activeConversions >= max) {
+      throw new PageForgeError({
+        code: "RESOURCE_LIMIT_EXCEEDED",
+        message: `Concurrent conversion limit reached: this converter allows ${max} conversion(s) at a time`,
+        details: { limit: "maxConcurrentConversions", max, active: this.activeConversions },
+      });
+    }
+    this.activeConversions += 1;
+    try {
+      return await this.runConversion(normalized);
+    } finally {
+      this.activeConversions -= 1;
+    }
+  }
+
+  private async runConversion(normalized: NormalizedOptions): Promise<ConvertResult> {
     const startedAt = Date.now();
     const log = this.logger.child("convert");
     const signal = normalized.signal;
@@ -125,18 +147,52 @@ class ConverterImpl implements Converter {
         this.browserManager.usePage(
           async (page) => {
             const tracker = trackResources(page);
+            let guard: RequestGuard | undefined;
             try {
               const plan = await raceWithAbort(prepareInput(normalized), signal);
+              // Second security layer: every request the page makes beyond the
+              // pre-validated plan is classified at the network layer, and the
+              // request cap aborts floods in-flight.
+              guard = await installRequestGuard(page, {
+                policy: {
+                  allowLoopback: normalized.security.allowLoopback,
+                  allowPrivateNetwork: normalized.security.allowPrivateNetwork,
+                },
+                validatedUrl: plan.kind === "navigate" ? plan.url : undefined,
+                maxRequests: normalized.limits.maxRequests,
+              });
+
               readinessDeadline.throwIfExpired(
                 "READINESS_TIMEOUT",
                 `Readiness deadline (${normalized.readiness.timeoutMs}ms) elapsed before navigation started`,
               );
-              await raceWithAbort(applyInput(page, plan, readinessDeadline.remainingMs()), signal);
+              try {
+                await raceWithAbort(applyInput(page, plan, readinessDeadline.remainingMs()), signal);
+              } catch (cause) {
+                // A policy-blocked redirect surfaces from `goto` as an
+                // ordinary net error — or, when the blocked address is
+                // unreachable, as the navigation deadline running out. The
+                // typed verdict outranks either.
+                if (
+                  isPageForgeError(cause) &&
+                  (cause.code === "NAVIGATION_FAILED" || cause.code === "READINESS_TIMEOUT")
+                ) {
+                  await guard.drain();
+                  if (guard.blockedRedirect !== undefined) throw guard.blockedRedirect;
+                }
+                throw cause;
+              }
+              await guard.drain();
+              const blockedAfterNavigation = guard.failure();
+              if (blockedAfterNavigation !== undefined) throw blockedAfterNavigation;
 
               const readiness = await raceWithAbort(
                 waitForReadiness(page, normalized.readiness, readinessDeadline, tracker),
                 signal,
               );
+              await guard.drain();
+              const blockedAfterReadiness = guard.failure();
+              if (blockedAfterReadiness !== undefined) throw blockedAfterReadiness;
               await raceWithAbort(preparePage(page, normalized), signal);
 
               const warnings: QualityWarning[] = [];
@@ -173,6 +229,18 @@ class ConverterImpl implements Converter {
                   id: "screen.output-policy",
                   status: "pass",
                   detail: `paper-fit: ${metadata.viewportWidth}px viewport scaled to ${Math.round(metadata.scale * 100)}% to fit ${metadata.paperLabel} content width`,
+                });
+              }
+
+              await guard.drain();
+              const blockedAfterRender = guard.failure();
+              if (blockedAfterRender !== undefined) throw blockedAfterRender;
+              const maxOutputBytes = normalized.limits.maxOutputBytes;
+              if (maxOutputBytes !== undefined && bytes.byteLength > maxOutputBytes) {
+                throw new PageForgeError({
+                  code: "RESOURCE_LIMIT_EXCEEDED",
+                  message: `Generated PDF is ${bytes.byteLength} bytes, exceeding limits.maxOutputBytes (${maxOutputBytes})`,
+                  details: { limit: "maxOutputBytes", maxOutputBytes, byteLength: bytes.byteLength },
                 });
               }
 
@@ -215,7 +283,14 @@ class ConverterImpl implements Converter {
                 browserVersion,
                 inspection,
                 timings: { readinessMs: readiness.durationMs, renderMs },
-                checks,
+                checks: [
+                  ...checks,
+                  {
+                    id: "security.requests",
+                    status: "pass",
+                    detail: `${guard.requestCount()} http(s) request(s) intercepted and checked against destination policy (limit ${normalized.limits.maxRequests})`,
+                  },
+                ],
                 warnings,
               });
 
@@ -241,6 +316,7 @@ class ConverterImpl implements Converter {
               });
               return new ConversionResult(bytes, report);
             } finally {
+              await guard?.dispose();
               tracker.dispose();
             }
           },
@@ -271,6 +347,16 @@ class ConverterImpl implements Converter {
  */
 export async function createConverter(options: CreateConverterOptions = {}): Promise<Converter> {
   const logger = options.logger ?? createLogger();
+  const maxConcurrentConversions = options.limits?.maxConcurrentConversions;
+  if (
+    maxConcurrentConversions !== undefined &&
+    (!Number.isInteger(maxConcurrentConversions) || maxConcurrentConversions < 1)
+  ) {
+    throw new PageForgeError({
+      code: "INVALID_INPUT",
+      message: `limits.maxConcurrentConversions must be an integer ≥ 1; received ${String(maxConcurrentConversions)}`,
+    });
+  }
   const browserManager = new BrowserManager(
     {
       sandbox: options.browser?.sandbox ?? true,
@@ -278,5 +364,5 @@ export async function createConverter(options: CreateConverterOptions = {}): Pro
     },
     logger.child("browser"),
   );
-  return new ConverterImpl(browserManager, logger.child("converter"));
+  return new ConverterImpl(browserManager, logger.child("converter"), maxConcurrentConversions);
 }
