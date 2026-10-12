@@ -72,6 +72,29 @@ export async function startFixtureServer(rootDir: string = FIXTURES_DIR): Promis
           return;
         }
 
+        // Test-only bot gate: like real WAFs that serve error pages to the
+        // HeadlessChrome UA token. 500 for headless UAs, real page otherwise.
+        if (pathname === "/ua-sensitive.html") {
+          const userAgent = req.headers["user-agent"] ?? "";
+          if (/HeadlessChrome/i.test(userAgent)) {
+            res.writeHead(500, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" });
+            res.end("go away, bot");
+            return;
+          }
+          res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+          res.end("<!doctype html><title>Gate passed</title><p>Only real-looking browsers get in.</p>");
+          return;
+        }
+
+        // Test-only UA echo: renders the User-Agent the browser actually sent,
+        // so UA policy can be asserted from the produced PDF text.
+        if (pathname === "/echo-ua.html") {
+          const userAgent = req.headers["user-agent"] ?? "(none)";
+          res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+          res.end(`<!doctype html><title>UA</title><p>UA:${userAgent}</p>`);
+          return;
+        }
+
         const resolved = path.resolve(root, `.${pathname}`);
         const insideRoot = resolved === root || resolved.startsWith(root + path.sep);
         if (!insideRoot) {

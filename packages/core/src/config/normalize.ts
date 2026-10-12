@@ -85,6 +85,11 @@ export interface NormalizedLimits {
   maxOutputBytes: number | undefined;
 }
 
+export interface NormalizedBrowserOptions {
+  /** Explicit User-Agent override; `undefined` = the derived standard Chrome UA. */
+  userAgent: string | undefined;
+}
+
 export interface NormalizedOptions {
   input: InputOptions;
   mode: "document" | "screen";
@@ -97,6 +102,7 @@ export interface NormalizedOptions {
   quality: NormalizedQualityOptions;
   limits: NormalizedLimits;
   security: NormalizedSecurityOptions;
+  browser: NormalizedBrowserOptions;
   signal: AbortSignal | undefined;
 }
 
@@ -242,6 +248,7 @@ export function normalizeOptions(raw: unknown): NormalizedOptions {
       allowLoopback: parsed.security?.allowLoopback ?? false,
       allowPrivateNetwork: parsed.security?.allowPrivateNetwork ?? false,
     },
+    browser: { userAgent: parsed.browser?.userAgent },
     signal: parsed.signal,
   };
 }

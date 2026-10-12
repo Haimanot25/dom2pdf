@@ -320,7 +320,11 @@ class ConverterImpl implements Converter {
               tracker.dispose();
             }
           },
-          { viewport: normalized.viewport, ...(signal !== undefined ? { signal } : {}) },
+          {
+            viewport: normalized.viewport,
+            ...(normalized.browser.userAgent === undefined ? {} : { userAgent: normalized.browser.userAgent }),
+            ...(signal !== undefined ? { signal } : {}),
+          },
         ),
         signal,
       );

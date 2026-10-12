@@ -189,6 +189,21 @@ export const securitySchema = z.strictObject({
   allowPrivateNetwork: z.boolean().optional(),
 });
 
+export const convertBrowserSchema = z.strictObject({
+  /**
+   * User-Agent for every request of this conversion.
+   *
+   * Default: this Chromium build's standard `Chrome` UA (the `HeadlessChrome`
+   * token removed). Production sites and WAFs frequently serve error pages —
+   * 403s and 500s — to the `HeadlessChrome` string, and a conversion engine's
+   * job is to render the site, not to advertise its automation to a bot
+   * filter. This changes the UA *string* only: TLS and HTTP/2 fingerprints
+   * still identify an automated browser, so do not treat this as an
+   * anonymity control. Pass any string to override it exactly.
+   */
+  userAgent: z.string().min(1).max(512).optional(),
+});
+
 export const urlInputSchema = z.strictObject({
   type: z.literal("url"),
   url: z.string().min(1),
@@ -247,6 +262,8 @@ export const convertOptionsSchema = z
     /** Safety rails: network request and output size caps → `RESOURCE_LIMIT_EXCEEDED`. */
     limits: limitsSchema.optional(),
     security: securitySchema.optional(),
+    /** Per-conversion browser presentation (User-Agent). */
+    browser: convertBrowserSchema.optional(),
     /** Cooperative cancellation: the conversion fails fast with `CANCELLED` when aborted. */
     signal: z.instanceof(AbortSignal).optional(),
   })

@@ -117,6 +117,20 @@ expectations.
 See [security](security.md). Defaults are the strict ones:
 `allowLocalFiles: false`, `allowLoopback: false`, `allowPrivateNetwork: false`.
 
+#### `browser` options
+
+| Key | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `userAgent` | string (1–512 chars) | this Chromium's standard `Chrome` UA | User-Agent sent with every request of the conversion |
+
+PageForge presents a standard `Chrome` UA by default — the `HeadlessChrome`
+token removed — because production sites and WAFs frequently serve error
+pages (403/500) to that string, and a conversion engine's job is to render
+the site as its visitors see it. This changes the UA *string* only: TLS and
+HTTP/2 fingerprints still identify an automated browser, so it is a
+compatibility shim, not an anonymity control. Pass any string to override
+it exactly (e.g. to reproduce what a specific client receives).
+
 ## Quality report
 
 ```ts

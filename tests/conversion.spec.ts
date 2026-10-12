@@ -104,6 +104,50 @@ test.describe("convert: URL input", () => {
     expect(pageText).toContain("Café");
     expect(pageText).toContain("Ligatures");
   });
+
+  test("passes sites that serve error pages to the HeadlessChrome UA string", async () => {
+    const url = `${server.origin}/ua-sensitive.html`;
+
+    // The gate 500s any UA containing "HeadlessChrome"; PageForge's default is
+    // a standard Chrome string for this build, so the conversion succeeds…
+    const result = await converter.convert({
+      input: { type: "url", url },
+      security: { allowLoopback: true },
+    });
+    const [pageText = ""] = await extractPdfText(result.bytes);
+    expect(pageText).toContain("Only real-looking browsers get in.");
+
+    // …while an explicit browser.userAgent override is honored exactly —
+    // including one the gate rejects (the error stays honest).
+    await expect(
+      converter.convert({
+        input: { type: "url", url },
+        security: { allowLoopback: true },
+        browser: { userAgent: "HeadlessChrome/1.2.3" },
+      }),
+    ).rejects.toMatchObject({ code: "NAVIGATION_FAILED" });
+
+    // The UA the server actually receives, read back out of the PDF:
+    // default is Chrome (never HeadlessChrome); overrides pass through exactly.
+    const echoUrl = `${server.origin}/echo-ua.html`;
+    const defaultUa = await converter.convert({
+      input: { type: "url", url: echoUrl },
+      security: { allowLoopback: true },
+    });
+    const [uaText = ""] = await extractPdfText(defaultUa.bytes);
+    // Whitespace-stripped: line wrapping in the PDF must not split tokens.
+    const flatUa = uaText.replace(/\s+/g, "");
+    expect(flatUa).toMatch(/Chrome\/\d+/);
+    expect(flatUa).not.toContain("HeadlessChrome");
+
+    const custom = await converter.convert({
+      input: { type: "url", url: echoUrl },
+      security: { allowLoopback: true },
+      browser: { userAgent: "PageForge-Test-UA/9.9" },
+    });
+    const [customText = ""] = await extractPdfText(custom.bytes);
+    expect(customText.replace(/\s+/g, "")).toContain("PageForge-Test-UA/9.9");
+  });
 });
 
 test.describe("convert: local file input", () => {

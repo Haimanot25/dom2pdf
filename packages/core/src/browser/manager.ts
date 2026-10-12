@@ -16,8 +16,30 @@ export interface BrowserManagerOptions {
 
 export interface UsePageOptions {
   viewport: { width: number; height: number };
+  /**
+   * Explicit User-Agent override. When absent, the context gets a standard
+   * `Chrome` UA derived from the running Chromium version (the `HeadlessChrome`
+   * token removed — many production sites serve error pages to that string).
+   */
+  userAgent?: string;
   /** When aborted, no context is created at all. */
   signal?: AbortSignal;
+}
+
+/**
+ * A standard Chrome User-Agent for the running Chromium build. This is a
+ * compatibility shim for the UA *string* only — it does not (and cannot)
+ * disguise the automation fingerprints in the TLS/HTTP2 handshake.
+ */
+export function chromeUserAgent(browserVersion: string): string {
+  const major = browserVersion.split(".")[0] || "0";
+  const platform =
+    process.platform === "darwin"
+      ? "Macintosh; Intel Mac OS X 10_15_7"
+      : process.platform === "win32"
+        ? "Windows NT 10.0; Win64; x64"
+        : "X11; Linux x86_64";
+  return `Mozilla/5.0 (${platform}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${major}.0.0.0 Safari/537.36`;
 }
 
 /**
@@ -88,7 +110,10 @@ export class BrowserManager {
 
     let context: BrowserContext;
     try {
-      context = await browser.newContext({ viewport: options.viewport });
+      context = await browser.newContext({
+        viewport: options.viewport,
+        userAgent: options.userAgent ?? chromeUserAgent(browser.version()),
+      });
     } catch (cause) {
       throw new PageForgeError({
         code: "BROWSER_FAILURE",
