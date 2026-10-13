@@ -175,6 +175,26 @@ export const qualitySchema = z
     }
   });
 
+export const fidelitySchema = z.strictObject({
+  /**
+   * Run render-fidelity verification after rendering: re-rasterize the PDF
+   * inside Chromium (pdf.js) and compare sampled pages against live-page
+   * screenshots under the same media emulation. Default `true`.
+   */
+  enabled: z.boolean().optional(),
+  /**
+   * How many PDF pages to verify (first N pages) — a number from 1 to 50, or
+   * `"all"` for every page. Default `3`.
+   */
+  samplePages: z.union([z.number().int().min(1).max(50), z.literal("all")]).optional(),
+  /**
+   * Mean structural-similarity (SSIM) below which the `render.fidelity` check
+   * warns. Scores are a heuristic visual comparison, never a pixel-perfectness
+   * claim. Range 0–1. Default `0.8`.
+   */
+  threshold: z.number().min(0).max(1).optional(),
+});
+
 export const limitsSchema = z.strictObject({
   /**
    * Maximum http(s) requests a single conversion may make (the browser-probed
@@ -278,6 +298,8 @@ export const convertOptionsSchema = z
     render: renderSchema.optional(),
     /** Output policy: measured values are checked after rendering; violations fail with `QUALITY_POLICY_FAILED`. */
     quality: qualitySchema.optional(),
+    /** Render-fidelity verification: visual comparison of the PDF against the source page. */
+    fidelity: fidelitySchema.optional(),
     /** Safety rails: network request and output size caps → `RESOURCE_LIMIT_EXCEEDED`. */
     limits: limitsSchema.optional(),
     security: securitySchema.optional(),
@@ -321,5 +343,6 @@ export type InputOptions = z.output<typeof inputSchema>;
 export type PdfOptions = z.output<typeof pdfOptionsSchema>;
 export type SecurityOptions = z.output<typeof securitySchema>;
 export type QualityOptions = z.output<typeof qualitySchema>;
+export type FidelityOptions = z.output<typeof fidelitySchema>;
 export type LimitsOptions = z.output<typeof limitsSchema>;
 export type PaperFormat = (typeof PAPER_FORMATS)[number];

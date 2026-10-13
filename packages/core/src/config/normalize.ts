@@ -2,6 +2,7 @@ import { PageForgeError } from "../errors/index.js";
 import {
   convertOptionsSchema,
   type ConvertOptions,
+  type FidelityOptions,
   type InputOptions,
   type PaperFormat,
   type PdfOptions,
@@ -23,6 +24,10 @@ export const DEFAULTS = {
   readinessSettleMs: 0,
   readinessSlowResourceMs: 10_000,
   readinessLazyLoad: true,
+  /** Render-fidelity verification (visual comparison) runs sampled by default. */
+  fidelityEnabled: true,
+  fidelitySamplePages: 3,
+  fidelityThreshold: 0.8,
   /** Safety rails on resource usage per conversion. */
   limitsMaxRequests: 500,
 } as const;
@@ -75,6 +80,14 @@ export interface NormalizedQualityOptions {
   failOnWarnings: boolean;
 }
 
+export interface NormalizedFidelityOptions {
+  enabled: boolean;
+  /** Verify the first N pages, or every page with `"all"`. */
+  samplePages: number | "all";
+  /** Mean-SSIM threshold below which `render.fidelity` warns. */
+  threshold: number;
+}
+
 export interface NormalizedRenderOptions {
   timeoutMs: number;
 }
@@ -106,6 +119,7 @@ export interface NormalizedOptions {
   readiness: NormalizedReadinessOptions;
   render: NormalizedRenderOptions;
   quality: NormalizedQualityOptions;
+  fidelity: NormalizedFidelityOptions;
   limits: NormalizedLimits;
   security: NormalizedSecurityOptions;
   browser: NormalizedBrowserOptions;
@@ -211,6 +225,14 @@ function normalizePdf(raw: PdfOptions | undefined): NormalizedPdfOptions {
   return out;
 }
 
+function normalizeFidelity(raw: FidelityOptions | undefined): NormalizedFidelityOptions {
+  return {
+    enabled: raw?.enabled ?? DEFAULTS.fidelityEnabled,
+    samplePages: raw?.samplePages ?? DEFAULTS.fidelitySamplePages,
+    threshold: raw?.threshold ?? DEFAULTS.fidelityThreshold,
+  };
+}
+
 /** Validates and applies all defaults. Throws typed errors for invalid input. */
 export function normalizeOptions(raw: unknown): NormalizedOptions {
   const parsed = parseConvertOptions(raw);
@@ -246,6 +268,7 @@ export function normalizeOptions(raw: unknown): NormalizedOptions {
       maxBytes: parsed.quality?.maxBytes,
       failOnWarnings: parsed.quality?.failOnWarnings ?? false,
     },
+    fidelity: normalizeFidelity(parsed.fidelity),
     limits: {
       maxRequests: parsed.limits?.maxRequests ?? DEFAULTS.limitsMaxRequests,
       maxOutputBytes: parsed.limits?.maxOutputBytes,

@@ -107,6 +107,29 @@ Measured after rendering; violations throw `QUALITY_POLICY_FAILED` with
 | `maxBytes` | output larger than requested |
 | `failOnWarnings` | report contains any warnings |
 
+#### `fidelity` options (render-fidelity verification)
+
+After the PDF is produced, PageForge re-rasterizes sampled pages inside
+Chromium (pdf.js) and compares them against screenshots of the live page taken
+under the same media emulation and at the print layout width. The comparison
+runs entirely in-browser (canvas pixel access); no pixel data leaves the
+process and no native dependencies are involved. Scores are a **heuristic
+visual comparison** (blurred, resized SSIM plus a perceptual-hash cross-check) —
+never a claim of pixel-perfect output.
+
+| Key | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `enabled` | boolean | `true` | Run the verification phase. When `false`, `report.fidelity` is absent |
+| `samplePages` | int 1–50, or `"all"` | `3` | Verify the first N pages (or every page) |
+| `threshold` | number 0–1 | `0.8` | Mean SSIM below which the `render.fidelity` check warns |
+
+Any infrastructure failure (or a layout that cannot be verified) degrades to
+`report.fidelity = { status: "skipped", reason }` — scores are never
+fabricated. Verification is skipped when `pdf.displayHeaderFooter` renders
+header/footer chrome, when `pdf.pageRanges` cannot be mapped back onto the
+document flow, or when the PDF has pages of differing sizes. Cancellation
+(`CANCELLED`) still propagates as a conversion failure, not a skip.
+
 #### `limits` options (safety rails)
 
 Unlike quality policies, limits fail the conversion outright with
@@ -149,11 +172,32 @@ interface QualityReport {
   pdf: { byteLength: number; pageCount: number; headerVersion: string };
   checks: QualityCheck[];    // { id, status: pass|warn|fail|skipped, detail, recommendation? }
   warnings: QualityWarning[];// { code, message, source: observed|heuristic }
+  fidelity?: FidelityReport; // present when fidelity verification was enabled
 }
 ```
 
 `source` is load-bearing: `observed` means the browser or pdfjs reported it;
 `heuristic` means it was estimated (DOM coordinates) and may be wrong.
+
+When fidelity verification is enabled, `report.fidelity` carries the outcome:
+
+```ts
+interface FidelityReport {
+  status: "measured" | "skipped";
+  reason?: string;            // why verification was skipped
+  score?: number;             // mean SSIM across sampled pages (measured only)
+  threshold: number;          // the configured threshold at the time
+  sampledPages: number[];     // 1-based PDF pages verified
+  pages?: Array<{
+    page: number;             // 1-based PDF page number
+    ssim: number;             // mean structural similarity (0–1, heuristic)
+    phashDistance: number;    // pHash Hamming distance (0 = same structure)
+    alignmentOffsetPx: number;// vertical shift that best aligned the slice
+    alignCorrelation: number; // ink-profile correlation at that alignment
+  }>;
+  durationMs?: number;
+}
+```
 
 ### Checks
 
@@ -164,6 +208,7 @@ interface QualityReport {
 | `resources` | always | Failed requests, HTTP ≥ 400, broken images |
 | `pdf-text` | always | Extractable character count (weak signal: presence, not reading order) |
 | `security.requests` | always | Requests intercepted and classified against destination policy, plus the configured cap |
+| `render.fidelity` | fidelity enabled | Mean SSIM of sampled pages against live-page screenshots; `skipped` (with the reason) when verification could not run |
 | `screen.output-policy` | screen mode | The measured paper-fit scale |
 
 ### Warning codes
@@ -178,6 +223,8 @@ interface QualityReport {
 | `resources.broken-images` | observed | An `<img>` finished without decoding |
 | `resources.font-unavailable` | observed | A `waitForFonts` family failed to load |
 | `pdf.empty-pages` | observed | A page has no extractable text (may be blank/image-only) |
+| `fidelity.low-score` | heuristic | Sampled pages scored below `fidelity.threshold` (visual comparison, not a pixel-perfectness claim) |
+| `fidelity.skipped` | heuristic | Fidelity verification was enabled but could not run (see the reason) |
 
 A browser-probed `/favicon.ico` 404 is excluded from resource issues: it says
 nothing about the document being converted.

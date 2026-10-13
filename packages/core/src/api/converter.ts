@@ -7,6 +7,7 @@ import { applyInput } from "../inputs/apply.js";
 import { prepareInput } from "../inputs/resolve.js";
 import { analyzeScreenLayout, layoutWarnings } from "../layout-analysis/analyze.js";
 import { inspectPdf } from "../pdf/inspect.js";
+import { fidelityDiagnostics, measureFidelity, type FidelityReport } from "../quality/fidelity.js";
 import { assertQualityPolicy } from "../quality/policy.js";
 import { buildQualityReport, type QualityCheck, type QualityWarning } from "../quality/report.js";
 import { documentRenderer } from "../renderers/document.js";
@@ -301,6 +302,30 @@ class ConverterImpl implements Converter {
                 });
               }
 
+              // Render-fidelity verification: re-rasterize the PDF inside
+              // Chromium (pdf.js) and compare sampled pages against live-page
+              // screenshots taken under the same media emulation. The phase
+              // degrades to `skipped` on infrastructure failure; only
+              // cancellation propagates.
+              let fidelity: FidelityReport | undefined;
+              if (normalized.fidelity.enabled) {
+                fidelity = await measureFidelity({
+                  page,
+                  bytes,
+                  options: normalized,
+                  screenScale: metadata?.scale,
+                  signal,
+                });
+                const fidelityParts = fidelityDiagnostics(fidelity);
+                checks.push(fidelityParts.check);
+                warnings.push(...fidelityParts.warnings);
+                // The capture-viewport resize may have triggered new requests;
+                // drain and re-check the guard so policy verdicts still hold.
+                await guard.drain();
+                const blockedAfterFidelity = guard.failure();
+                if (blockedAfterFidelity !== undefined) throw blockedAfterFidelity;
+              }
+
               const report = buildQualityReport({
                 durationMs: Date.now() - startedAt,
                 mode: normalized.mode,
@@ -316,6 +341,7 @@ class ConverterImpl implements Converter {
                   },
                 ],
                 warnings,
+                ...(fidelity !== undefined ? { fidelity } : {}),
               });
 
               assertQualityPolicy(

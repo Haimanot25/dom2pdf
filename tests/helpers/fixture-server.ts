@@ -72,6 +72,49 @@ export async function startFixtureServer(rootDir: string = FIXTURES_DIR): Promis
           return;
         }
 
+        // Test-only fidelity fixtures: two documents that are byte-identical
+        // except the sabotage variant adds `break-inside: avoid` to a tall
+        // block that straddles the first page boundary. Print pagination must
+        // move the whole block to page 2 (leaving a gap on page 1), while
+        // screen flow shows it in place — a genuine print-vs-screen
+        // divergence the render-fidelity phase must detect.
+        if (pathname === "/fidelity-healthy.html" || pathname === "/fidelity-sabotage.html") {
+          const sabotage = pathname === "/fidelity-sabotage.html";
+          const paragraphs = Array.from(
+            { length: 8 },
+            (_value, index) =>
+              `<p>Paragraph ${index + 1}: The quarterly report covers revenue, retention, and reliability across all regions, with charts and detailed notes attached below for review by the team.</p>`,
+          ).join("\n");
+          res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+          res.end(`<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>fidelity fixture</title>
+<style>
+  body { font-family: Georgia, "Times New Roman", serif; margin: 24px; line-height: 1.6; font-size: 16px; }
+  h1 { font-size: 26px; margin: 0 0 16px; }
+  p { margin: 0 0 14px; }
+  .tall { height: 880px; background: #2c3e50; color: #f2f5fa; padding: 16px; box-sizing: border-box; }
+  .tall p { margin: 0 0 12px; }
+  ${sabotage ? ".tall { break-inside: avoid; }" : ""}
+</style>
+</head>
+<body>
+<h1>Quarterly report</h1>
+${paragraphs}
+<div class="tall"><p>Tall keep-together block with dense visual content. ${
+            sabotage
+              ? "Print pagination moves this whole block to the next page (break-inside: avoid), leaving a gap on the page it started on; screen flow shows it in place."
+              : "Flows continuously in both screen and print layout."
+          }</p><p>The dark band makes any print-vs-screen divergence visually loud, which the fidelity comparison must score far below the healthy layout.</p><p>Trailing lines inside the block keep its ink profile structured rather than uniform, so alignment cannot mask the divergence with a lucky offset.</p></div>
+${paragraphs}
+${paragraphs}
+</body>
+</html>`);
+          return;
+        }
+
         // Test-only bot gate: like real WAFs that serve error pages to the
         // HeadlessChrome UA token. 500 for headless UAs, real page otherwise.
         if (pathname === "/ua-sensitive.html") {

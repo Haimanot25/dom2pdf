@@ -1,4 +1,5 @@
 import type { PdfInspection } from "../pdf/inspect.js";
+import type { FidelityReport } from "./fidelity.js";
 
 export type CheckStatus = "pass" | "warn" | "fail" | "skipped";
 
@@ -42,6 +43,12 @@ export interface QualityReport {
   };
   checks: QualityCheck[];
   warnings: QualityWarning[];
+  /**
+   * Visual comparison of the PDF against the source page, present when
+   * `fidelity.enabled` was on (either `measured` or `skipped` with a reason).
+   * Absent when fidelity verification was disabled.
+   */
+  fidelity?: FidelityReport;
 }
 
 export interface QualityReportInput {
@@ -54,6 +61,8 @@ export interface QualityReportInput {
   checks?: QualityCheck[];
   /** Observed or heuristic warnings gathered before rendering finished. */
   warnings?: QualityWarning[];
+  /** Render-fidelity outcome; present when verification was enabled (measured or skipped). */
+  fidelity?: FidelityReport;
 }
 
 /**
@@ -84,5 +93,6 @@ export function buildQualityReport(input: QualityReportInput): QualityReport {
       ...(input.checks ?? []),
     ],
     warnings: input.warnings ?? [],
+    ...(input.fidelity !== undefined ? { fidelity: input.fidelity } : {}),
   };
 }

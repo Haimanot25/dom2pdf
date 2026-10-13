@@ -81,3 +81,21 @@ First public alpha — the six-phase foundation, in order:
   Node process — found via the web UI dying mid-conversion. `withDeadline`
   now abandons in-flight work safely, with a regression test; the web UI also
   logs stray rejections instead of exiting.
+
+### Phase 8a — Render-fidelity verification
+- New post-render verification phase (on by default): sampled pages of the
+  produced PDF are re-rasterized inside Chromium with pdf.js and compared,
+  page by page, against screenshots of the live page captured under the same
+  media emulation and at the print layout width. The comparison runs entirely
+  in-browser (canvas pixel access) — no native dependencies, no pixel data
+  leaves the process.
+- `fidelity` convert options: `enabled` (default `true`), `samplePages`
+  (1–50 or `"all"`, default `3`), `threshold` (default `0.8`). Results land in
+  `report.fidelity` (per-page SSIM, pHash distance, alignment offset) with a
+  `render.fidelity` check and `fidelity.low-score` / `fidelity.skipped`
+  warnings.
+- Honesty rules: scores are a heuristic visual comparison, never a
+  pixel-perfectness claim; any infrastructure failure or unverifiable layout
+  (header/footer templates, unmappable `pageRanges`, differing page sizes)
+  degrades to `status: "skipped"` with the reason — scores are never
+  fabricated. Cancellation still propagates as `CANCELLED`.
