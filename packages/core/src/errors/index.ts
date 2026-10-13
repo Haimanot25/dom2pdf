@@ -54,7 +54,12 @@ export interface PageForgeErrorOptions {
 export class PageForgeError extends Error {
   override readonly name = "PageForgeError";
   readonly code: ErrorCode;
-  readonly details: Record<string, unknown> | undefined;
+  /**
+   * Structured, sanitized context. Set at construction; on failure paths it
+   * may be extended afterwards with `details.diagnostics` (failure forensics,
+   * opt-in via the `diagnostics` convert option).
+   */
+  details: Record<string, unknown> | undefined;
 
   constructor(options: PageForgeErrorOptions) {
     super(options.message, options.cause === undefined ? undefined : { cause: options.cause });

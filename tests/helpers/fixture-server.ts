@@ -115,6 +115,27 @@ ${paragraphs}
           return;
         }
 
+        // Test-only forensics probe: logs to the console, raises an uncaught
+        // error, and loads an image that 404s — so a failure after this page
+        // loads has console, pageerror, and network state to report.
+        if (pathname === "/diag-probe.html") {
+          res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+          res.end(`<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>diag probe</title></head>
+<body>
+<p>diagnostics probe page</p>
+<img src="/missing-diag-image.png" alt="missing" style="display:block;width:10px;height:10px">
+<script>
+  console.log("pageforge-diag-probe");
+  console.error("pageforge-diag-error");
+  setTimeout(function () { throw new Error("pageforge-diag-pageerror"); }, 0);
+</script>
+</body>
+</html>`);
+          return;
+        }
+
         // Test-only bot gate: like real WAFs that serve error pages to the
         // HeadlessChrome UA token. 500 for headless UAs, real page otherwise.
         if (pathname === "/ua-sensitive.html") {

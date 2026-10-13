@@ -48,6 +48,7 @@ Unknown keys are rejected with `UNSUPPORTED_OPTION` — never silently ignored.
 | `outputPolicy` | `{type:"paper-fit"}` | screen: `paper-fit` | `viewport-pages`/`full-content` reserved → `UNSUPPORTED_OPTION`; document mode rejects the option |
 | `viewport` | `{width,height}` | `1280×720` | Browser layout viewport; independent of paper |
 | `signal` | `AbortSignal` | — | Aborting fails fast with `CANCELLED`; the converter stays usable |
+| `diagnostics` | boolean | `false` | Failure forensics attached to errors as `details.diagnostics` (see below) |
 
 #### `pdf` options
 
@@ -129,6 +130,35 @@ fabricated. Verification is skipped when `pdf.displayHeaderFooter` renders
 header/footer chrome, when `pdf.pageRanges` cannot be mapped back onto the
 document flow, or when the PDF has pages of differing sizes. Cancellation
 (`CANCELLED`) still propagates as a conversion failure, not a skip.
+
+#### `diagnostics` option (failure forensics)
+
+With `diagnostics: true`, the conversion records console messages (ring
+buffer: last 100 entries, 2000 chars each), uncaught page exceptions, and
+network activity from the moment the page is created. When the conversion
+fails, the captured state plus a best-effort JPEG screenshot and the
+serialized DOM (capped at 256 KiB) are attached to the error:
+
+```ts
+error.details?.diagnostics?: {
+  gatheredAtMs: number;
+  url: string | null;              // sanitized
+  console: Array<{ type; text; location?; timestampMs }>;
+  pageErrors: string[];
+  requests: Array<{ url; method; resourceType; status?; failureText? }>;
+  droppedRequests?: number;        // beyond the 500-record cap
+  screenshotJpegBase64?: string;
+  dom?: string;
+  incomplete?: string[];           // capture steps that could not run
+}
+```
+
+Honesty rules: forensics are best effort and never mask, delay, or replace
+the original failure — a capture step that cannot run is listed in
+`incomplete[]` instead of being silently dropped, and `CANCELLED` never waits
+on forensics. The bundle contains page content (DOM, screenshot, console
+text): treat it as sensitive as the page itself. The CLI writes bundles to
+`<output>.diag/` with `--diagnostics`; the local web UI always collects them.
 
 #### `limits` options (safety rails)
 

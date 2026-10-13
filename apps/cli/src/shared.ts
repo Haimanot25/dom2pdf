@@ -155,6 +155,7 @@ export interface ConvertFlags {
   maxRequests?: string;
   maxOutputBytes?: string;
   maxConcurrent?: string;
+  diagnostics?: boolean;
   json?: boolean;
   quiet?: boolean;
 }
@@ -230,6 +231,7 @@ export function buildConvertOptions(
     options.render = { timeoutMs: parseIntFlag("render-timeout", flags.renderTimeout) };
   }
   if (Object.keys(quality).length > 0) options.quality = quality as ConvertOptions["quality"];
+  if (flags.diagnostics === true) options.diagnostics = true;
   if (Object.keys(limits).length > 0) options.limits = limits as ConvertOptions["limits"];
   if (Object.keys(security).length > 0) options.security = security as ConvertOptions["security"];
   return options;

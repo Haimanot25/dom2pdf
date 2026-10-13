@@ -99,3 +99,18 @@ First public alpha — the six-phase foundation, in order:
   (header/footer templates, unmappable `pageRanges`, differing page sizes)
   degrades to `status: "skipped"` with the reason — scores are never
   fabricated. Cancellation still propagates as `CANCELLED`.
+
+### Phase 8b — Failure forensics
+- New `diagnostics` convert option (default `false`): console messages (ring
+  buffer: last 100 entries, 2000 chars each), uncaught page exceptions, and
+  network activity are recorded from the moment the page is created. On
+  failure the captured state plus a best-effort JPEG screenshot and the
+  serialized DOM (capped at 256 KiB) attach to the error as
+  `error.details.diagnostics`.
+- Forensics are best effort by design: a capture step that cannot run is
+  listed in `incomplete[]` (never silently dropped), the whole artifact
+  phase is bounded by a 5s deadline, and `CANCELLED` never waits on — or is
+  masked by — forensics.
+- CLI: `--diagnostics` writes the bundle next to the intended output as
+  `<output>.diag/` (`meta.json`, `page.html`, `screenshot.jpg`). The local
+  web UI always collects forensics so its error card can show what failed.

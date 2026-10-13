@@ -300,6 +300,13 @@ export const convertOptionsSchema = z
     quality: qualitySchema.optional(),
     /** Render-fidelity verification: visual comparison of the PDF against the source page. */
     fidelity: fidelitySchema.optional(),
+    /**
+     * Failure forensics: record console messages, page errors, and network
+     * activity, and attach them (plus a screenshot and the DOM) to the error
+     * as `details.diagnostics` when the conversion fails. Off by default —
+     * the bundle contains page content and should be treated as sensitive.
+     */
+    diagnostics: z.boolean().optional(),
     /** Safety rails: network request and output size caps → `RESOURCE_LIMIT_EXCEEDED`. */
     limits: limitsSchema.optional(),
     security: securitySchema.optional(),

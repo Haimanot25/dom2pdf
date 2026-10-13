@@ -65,6 +65,7 @@ pageforge convert ./invoice.html --min-pages 1 --max-pages 4 --json > report.jso
 | `--min-text-chars <n>` | `quality.minTextChars` |
 | `--max-bytes <n>` | `quality.maxBytes` |
 | `--fail-on-warnings` | `quality.failOnWarnings` |
+| `--diagnostics` | `diagnostics: true` — on failure, forensics (console, requests, DOM, screenshot) are written next to the output as `<output>.diag/` |
 
 **Security**
 

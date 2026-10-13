@@ -190,6 +190,10 @@ export function createWebServer(options: WebServerOptions): Server {
           const convertOptions: ConvertOptions = {
             input: { type: "url", url: request.url },
             signal: controller.signal,
+            // Always-on forensics: the error card surfaces console errors,
+            // failed requests, and the DOM/screenshot of what went wrong.
+            // The bundle never leaves this localhost tool's response.
+            diagnostics: true,
             ...(request.mode === undefined ? {} : { mode: request.mode }),
             ...(request.format === undefined ? {} : { pdf: { format: request.format } }),
             // Tolerant readiness: skip the stages that hang on sites keeping

@@ -2,6 +2,13 @@ import { preparePage } from "../capture/prepare.js";
 import { BrowserManager } from "../browser/manager.js";
 import { normalizeOptions, type NormalizedOptions } from "../config/normalize.js";
 import type { ConvertOptions } from "../config/schema.js";
+import {
+  attachDiagnostics,
+  gatherDiagnostics,
+  installDiagnosticsCapture,
+  isCancellation,
+  readAttachedDiagnostics,
+} from "../diagnostics/collect.js";
 import { isPageForgeError, PageForgeError } from "../errors/index.js";
 import { applyInput } from "../inputs/apply.js";
 import { prepareInput } from "../inputs/resolve.js";
@@ -172,6 +179,10 @@ class ConverterImpl implements Converter {
         this.browserManager.usePage(
           async (page) => {
             const tracker = trackResources(page);
+            // Failure forensics (opt-in): console/pageerror/network capture
+            // from the first moment the page exists, attached to the error
+            // when the conversion fails.
+            const diagnosticsCapture = normalized.diagnostics ? installDiagnosticsCapture(page) : undefined;
             let guard: RequestGuard | undefined;
             try {
               const plan = await raceWithAbort(prepareInput(normalized), signal);
@@ -365,9 +376,32 @@ class ConverterImpl implements Converter {
                 warnings: report.warnings.length,
               });
               return new ConversionResult(bytes, report);
+            } catch (cause) {
+              // Forensics are best effort: they never mask, delay, or replace
+              // the original failure, and cancellation stays prompt.
+              if (diagnosticsCapture !== undefined && !isCancellation(cause)) {
+                let bundle;
+                try {
+                  bundle = await gatherDiagnostics(page, diagnosticsCapture);
+                } catch (gatherCause) {
+                  bundle = {
+                    gatheredAtMs: Date.now(),
+                    url: null,
+                    console: diagnosticsCapture.console.map((entry) => ({ ...entry })),
+                    pageErrors: [...diagnosticsCapture.pageErrors],
+                    requests: diagnosticsCapture.requests.map((record) => ({ ...record })),
+                    incomplete: [
+                      `diagnostics gathering failed: ${gatherCause instanceof Error ? gatherCause.message : String(gatherCause)}`,
+                    ],
+                  };
+                }
+                attachDiagnostics(cause, bundle);
+              }
+              throw cause;
             } finally {
               await guard?.dispose();
               tracker.dispose();
+              diagnosticsCapture?.dispose();
             }
           },
           {
@@ -380,10 +414,14 @@ class ConverterImpl implements Converter {
       );
     } catch (cause) {
       if (cause instanceof PageForgeError) throw cause;
+      // Plain failures are wrapped as BROWSER_FAILURE; carry any forensics
+      // that were attached to the original cause onto the typed error.
+      const diagnostics = readAttachedDiagnostics(cause);
       throw new PageForgeError({
         code: "BROWSER_FAILURE",
         message: `Unexpected conversion failure${cause instanceof Error ? `: ${cause.message}` : ""}`,
         cause,
+        ...(diagnostics !== undefined ? { details: { diagnostics } } : {}),
       });
     }
   }

@@ -13,6 +13,9 @@ export { buildQualityReport } from "./quality/report.js";
 export type { QualityReport, QualityCheck, QualityWarning, CheckStatus } from "./quality/report.js";
 export type { FidelityReport, FidelityPageScore, SliceGeometry } from "./quality/fidelity.js";
 
+export type { DiagnosticsBundle, ConsoleEntry, RequestRecord } from "./diagnostics/collect.js";
+export { readAttachedDiagnostics } from "./diagnostics/collect.js";
+
 export { inspectPdf } from "./pdf/inspect.js";
 export type { PdfInspection, PdfTextStats } from "./pdf/inspect.js";
 

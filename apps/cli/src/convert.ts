@@ -1,6 +1,14 @@
 import { readFileSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 import type { Command } from "commander";
-import { createConverter, createSilentLogger, type QualityReport } from "pageforge-pdf";
+import {
+  createConverter,
+  createSilentLogger,
+  readAttachedDiagnostics,
+  type DiagnosticsBundle,
+  type QualityReport,
+} from "pageforge-pdf";
 import {
   buildConvertOptions,
   formatBytes,
@@ -15,6 +23,23 @@ function readStdin(): string {
     throw new UsageError("--stdin requires HTML piped on stdin (nothing was piped)");
   }
   return readFileSync(0, "utf8");
+}
+
+/**
+ * Writes a failure-forensics bundle next to the intended output as
+ * `<output>.diag/`: `meta.json` (console, page errors, requests), plus
+ * `page.html` and `screenshot.jpg` when they could be captured.
+ */
+async function writeDiagnosticsBundle(outputPath: string, bundle: DiagnosticsBundle): Promise<string> {
+  const dir = `${outputPath}.diag`;
+  await mkdir(dir, { recursive: true });
+  const { screenshotJpegBase64, dom, ...rest } = bundle;
+  await writeFile(path.join(dir, "meta.json"), `${JSON.stringify(rest, null, 2)}\n`);
+  if (dom !== undefined) await writeFile(path.join(dir, "page.html"), dom);
+  if (screenshotJpegBase64 !== undefined) {
+    await writeFile(path.join(dir, "screenshot.jpg"), Buffer.from(screenshotJpegBase64, "base64"));
+  }
+  return dir;
 }
 
 function printSummary(report: QualityReport, output: string): void {
@@ -63,6 +88,7 @@ export function registerConvertCommand(program: Command): void {
     .option("--max-requests <n>", "limit: max http(s) requests per conversion (default 500)", undefined)
     .option("--max-output-bytes <n>", "limit: hard cap on generated PDF size in bytes", undefined)
     .option("--max-concurrent <n>", "limit: conversions allowed at once on this converter", undefined)
+    .option("--diagnostics", "on failure, write forensics (console, requests, DOM, screenshot) to <output>.diag/")
     .option("--json", "print the structured quality report as JSON on stdout")
     .option("--quiet", "suppress success output (errors still go to stderr)")
     .action(async (source: string | undefined, flags: ConvertFlags) => {
@@ -86,6 +112,21 @@ export function registerConvertCommand(program: Command): void {
         } else if (flags.quiet !== true) {
           printSummary(result.report, flags.output);
         }
+      } catch (error) {
+        if (flags.diagnostics === true) {
+          const bundle = readAttachedDiagnostics(error);
+          if (bundle !== undefined) {
+            try {
+              const dir = await writeDiagnosticsBundle(flags.output, bundle);
+              console.error(`Diagnostics written to ${dir}`);
+            } catch (writeCause) {
+              console.error(
+                `Failed to write diagnostics: ${writeCause instanceof Error ? writeCause.message : String(writeCause)}`,
+              );
+            }
+          }
+        }
+        throw error;
       } finally {
         process.removeListener("SIGINT", onSignal);
         await converter.close();

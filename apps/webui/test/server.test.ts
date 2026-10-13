@@ -90,6 +90,8 @@ describe("pageforge-web server", () => {
     expect(options.input).toEqual({ type: "url", url: "https://example.com" });
     expect(options.mode).toBe("screen");
     expect(options.pdf).toEqual({ format: "Letter" });
+    // Always-on forensics so the error card can show what failed.
+    expect(options.diagnostics).toBe(true);
     // Deny-by-default: no security block unless the server was started with flags.
     expect(options.security).toBeUndefined();
   });

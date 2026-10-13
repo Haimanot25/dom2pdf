@@ -28,6 +28,8 @@ export const DEFAULTS = {
   fidelityEnabled: true,
   fidelitySamplePages: 3,
   fidelityThreshold: 0.8,
+  /** Failure forensics are opt-in: the bundle contains page content. */
+  diagnosticsEnabled: false,
   /** Safety rails on resource usage per conversion. */
   limitsMaxRequests: 500,
 } as const;
@@ -120,6 +122,8 @@ export interface NormalizedOptions {
   render: NormalizedRenderOptions;
   quality: NormalizedQualityOptions;
   fidelity: NormalizedFidelityOptions;
+  /** Failure forensics: attach `details.diagnostics` to errors. */
+  diagnostics: boolean;
   limits: NormalizedLimits;
   security: NormalizedSecurityOptions;
   browser: NormalizedBrowserOptions;
@@ -269,6 +273,7 @@ export function normalizeOptions(raw: unknown): NormalizedOptions {
       failOnWarnings: parsed.quality?.failOnWarnings ?? false,
     },
     fidelity: normalizeFidelity(parsed.fidelity),
+    diagnostics: parsed.diagnostics ?? DEFAULTS.diagnosticsEnabled,
     limits: {
       maxRequests: parsed.limits?.maxRequests ?? DEFAULTS.limitsMaxRequests,
       maxOutputBytes: parsed.limits?.maxOutputBytes,

@@ -165,6 +165,13 @@ describe("buildConvertOptions", () => {
     expect(options.limits).toBeUndefined();
   });
 
+  it("maps --diagnostics onto the diagnostics option and omits it otherwise", () => {
+    const enabled = buildConvertOptions(flags({ diagnostics: true }), { kind: "stdin" }, STDIN_HTML);
+    expect(enabled.diagnostics).toBe(true);
+    const absent = buildConvertOptions(flags(), { kind: "stdin" }, STDIN_HTML);
+    expect(absent.diagnostics).toBeUndefined();
+  });
+
   it("rejects non-integer numeric flags", () => {
     expect(() => buildConvertOptions(flags({ minPages: "2.5" }), { kind: "stdin" }, STDIN_HTML)).toThrow(
       UsageError,

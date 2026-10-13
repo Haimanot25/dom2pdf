@@ -51,7 +51,8 @@ export async function main(argv: string[]): Promise<number> {
     }
     if (jsonMode) {
       // Machine consumers get the full error, including attached details
-      // (quality failures carry the measured report here).
+      // (quality failures carry the measured report here; diagnostics carry
+      // the full failure-forensics bundle).
       console.error(JSON.stringify({ error: errorToJson(error) }, null, 2));
     } else {
       console.error(errorToText(error));
@@ -62,7 +63,29 @@ export async function main(argv: string[]): Promise<number> {
         error.code !== "QUALITY_POLICY_FAILED" &&
         error.details !== undefined
       ) {
-        console.error(`  details: ${JSON.stringify(error.details)}`);
+        const { diagnostics, ...rest } = error.details;
+        if (Object.keys(rest).length > 0) {
+          console.error(`  details: ${JSON.stringify(rest)}`);
+        }
+        if (diagnostics !== undefined) {
+          // The forensics bundle embeds a screenshot and the DOM — summarize
+          // it here; --json (or the --diagnostics files) carries the payload.
+          const bundle = diagnostics as {
+            console?: unknown[];
+            requests?: unknown[];
+            dom?: string;
+            screenshotJpegBase64?: string;
+          };
+          const parts = [
+            `${(bundle.console ?? []).length} console message(s)`,
+            `${(bundle.requests ?? []).length} request(s)`,
+            bundle.dom === undefined ? "no DOM" : `${bundle.dom.length} DOM chars`,
+            bundle.screenshotJpegBase64 === undefined
+              ? "no screenshot"
+              : `screenshot ~${Math.round((bundle.screenshotJpegBase64.length * 3) / 4 / 1024)} KB`,
+          ];
+          console.error(`  forensics: ${parts.join(", ")} (rerun with --json for the full bundle)`);
+        }
       }
     }
     return exitCodeFor(error);
