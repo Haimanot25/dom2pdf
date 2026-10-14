@@ -13,6 +13,7 @@ import { isPageForgeError, PageForgeError } from "../errors/index.js";
 import { applyInput } from "../inputs/apply.js";
 import { prepareInput } from "../inputs/resolve.js";
 import { analyzeScreenLayout, layoutWarnings } from "../layout-analysis/analyze.js";
+import { contentDigest, normalizePdfDates, type DeterminismReport } from "../pdf/determinism.js";
 import { inspectPdf } from "../pdf/inspect.js";
 import { fidelityDiagnostics, measureFidelity, type FidelityReport } from "../quality/fidelity.js";
 import { assertQualityPolicy } from "../quality/policy.js";
@@ -252,7 +253,7 @@ class ConverterImpl implements Converter {
               const browserVersion = page.context().browser()?.version() ?? "unknown";
               const renderer = rendererFor(normalized.mode);
               const renderStartedAt = Date.now();
-              const { bytes, metadata } = await renderer.render({
+              const { bytes: renderedBytes, metadata } = await renderer.render({
                 page,
                 options: normalized,
                 logger: log.child("render"),
@@ -272,12 +273,46 @@ class ConverterImpl implements Converter {
               const blockedAfterRender = guard.failure();
               if (blockedAfterRender !== undefined) throw blockedAfterRender;
               const maxOutputBytes = normalized.limits.maxOutputBytes;
-              if (maxOutputBytes !== undefined && bytes.byteLength > maxOutputBytes) {
+              if (maxOutputBytes !== undefined && renderedBytes.byteLength > maxOutputBytes) {
                 throw new PageForgeError({
                   code: "RESOURCE_LIMIT_EXCEEDED",
-                  message: `Generated PDF is ${bytes.byteLength} bytes, exceeding limits.maxOutputBytes (${maxOutputBytes})`,
-                  details: { limit: "maxOutputBytes", maxOutputBytes, byteLength: bytes.byteLength },
+                  message: `Generated PDF is ${renderedBytes.byteLength} bytes, exceeding limits.maxOutputBytes (${maxOutputBytes})`,
+                  details: { limit: "maxOutputBytes", maxOutputBytes, byteLength: renderedBytes.byteLength },
                 });
+              }
+
+              // Deterministic output (opt-in): zero the two PDF date stamps in
+              // place — a byte-length-preserving rewrite — so repeated
+              // conversions of the same input are byte-identical on the same
+              // browser build. The content digest over extracted page text
+              // lets callers verify "same content" independently of the
+              // stamps; a date span that cannot be normalized is reported as
+              // `determinism.residual`, never hidden.
+              let bytes = renderedBytes;
+              let deterministic: DeterminismReport | undefined;
+              if (normalized.deterministic) {
+                const normalizedPdf = normalizePdfDates(renderedBytes);
+                bytes = normalizedPdf.bytes;
+                deterministic = {
+                  contentDigest: await raceWithAbort(contentDigest(bytes), signal),
+                  normalizedSpans: normalizedPdf.normalizedSpans,
+                  residual: normalizedPdf.residual,
+                };
+                checks.push({
+                  id: "pdf.determinism",
+                  status: deterministic.residual > 0 ? "warn" : "pass",
+                  detail: `${deterministic.normalizedSpans} date span(s) zeroed in place; content digest sha256:${deterministic.contentDigest}${deterministic.residual > 0 ? `; ${deterministic.residual} span(s) left unnormalized` : ""}`,
+                  ...(deterministic.residual > 0
+                    ? { recommendation: "Output may not be byte-reproducible; inspect the PDF for date stamps outside /CreationDate and /ModDate" }
+                    : {}),
+                });
+                if (deterministic.residual > 0) {
+                  warnings.push({
+                    code: "determinism.residual",
+                    source: "observed",
+                    message: `${deterministic.residual} date span(s) could not be normalized; byte-level output may not be reproducible`,
+                  });
+                }
               }
 
               const inspection = await raceWithAbort(inspectPdf(bytes, { extractText: true }), signal);
@@ -353,6 +388,7 @@ class ConverterImpl implements Converter {
                 ],
                 warnings,
                 ...(fidelity !== undefined ? { fidelity } : {}),
+                ...(deterministic !== undefined ? { deterministic } : {}),
               });
 
               assertQualityPolicy(

@@ -49,6 +49,7 @@ Unknown keys are rejected with `UNSUPPORTED_OPTION` — never silently ignored.
 | `viewport` | `{width,height}` | `1280×720` | Browser layout viewport; independent of paper |
 | `signal` | `AbortSignal` | — | Aborting fails fast with `CANCELLED`; the converter stays usable |
 | `diagnostics` | boolean | `false` | Failure forensics attached to errors as `details.diagnostics` (see below) |
+| `deterministic` | boolean | `false` | Byte-reproducible output on the same browser build (see below) |
 
 #### `pdf` options
 
@@ -160,6 +161,29 @@ on forensics. The bundle contains page content (DOM, screenshot, console
 text): treat it as sensitive as the page itself. The CLI writes bundles to
 `<output>.diag/` with `--diagnostics`; the local web UI always collects them.
 
+#### `deterministic` option (reproducible bytes)
+
+With `deterministic: true`, the two date stamps Chromium writes into every
+PDF (`/CreationDate`, `/ModDate` — the only byte-level differences between
+repeated conversions of the same input on the same browser build) are zeroed
+**in place**, preserving byte length so the xref table stays valid. The
+report gains:
+
+```ts
+deterministic?: {
+  contentDigest: string;   // sha256 over page count + per-page text (whitespace-normalized)
+  normalizedSpans: number; // date spans zeroed in place
+  residual: number;        // date spans found but not normalizable (warns when > 0)
+}
+```
+
+plus a `pdf.determinism` check (warn + `determinism.residual` warning when a
+span cannot be rewritten). Honesty notes: byte identity holds for repeated
+conversions **on the same machine and Chromium build** — it is not a
+cross-machine guarantee (font rasterization and PDF layout can legitimately
+differ between environments). The content digest lets callers verify "same
+content" independently of the byte stamps.
+
 #### `limits` options (safety rails)
 
 Unlike quality policies, limits fail the conversion outright with
@@ -203,6 +227,11 @@ interface QualityReport {
   checks: QualityCheck[];    // { id, status: pass|warn|fail|skipped, detail, recommendation? }
   warnings: QualityWarning[];// { code, message, source: observed|heuristic }
   fidelity?: FidelityReport; // present when fidelity verification was enabled
+  deterministic?: {          // present when `deterministic: true` was set
+    contentDigest: string;   // sha256 over page count + per-page text
+    normalizedSpans: number; // date spans zeroed in place
+    residual: number;        // date spans not normalizable (warns when > 0)
+  };
 }
 ```
 
@@ -237,6 +266,7 @@ interface FidelityReport {
 | `readiness` | always | What actually ran: fonts/images/network idle/selector/settle + duration |
 | `resources` | always | Failed requests, HTTP ≥ 400, broken images |
 | `pdf-text` | always | Extractable character count (weak signal: presence, not reading order) |
+| `pdf.determinism` | `deterministic: true` | Date spans zeroed in place plus the content digest; `warn` when a span could not be normalized |
 | `security.requests` | always | Requests intercepted and classified against destination policy, plus the configured cap |
 | `render.fidelity` | fidelity enabled | Mean SSIM of sampled pages against live-page screenshots; `skipped` (with the reason) when verification could not run |
 | `screen.output-policy` | screen mode | The measured paper-fit scale |
@@ -255,6 +285,7 @@ interface FidelityReport {
 | `pdf.empty-pages` | observed | A page has no extractable text (may be blank/image-only) |
 | `fidelity.low-score` | heuristic | Sampled pages scored below `fidelity.threshold` (visual comparison, not a pixel-perfectness claim) |
 | `fidelity.skipped` | heuristic | Fidelity verification was enabled but could not run (see the reason) |
+| `determinism.residual` | observed | Date spans could not be normalized; byte-level output may not be reproducible |
 
 A browser-probed `/favicon.ico` 404 is excluded from resource issues: it says
 nothing about the document being converted.

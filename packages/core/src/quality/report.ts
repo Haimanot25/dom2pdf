@@ -1,4 +1,5 @@
 import type { PdfInspection } from "../pdf/inspect.js";
+import type { DeterminismReport } from "../pdf/determinism.js";
 import type { FidelityReport } from "./fidelity.js";
 
 export type CheckStatus = "pass" | "warn" | "fail" | "skipped";
@@ -49,6 +50,11 @@ export interface QualityReport {
    * Absent when fidelity verification was disabled.
    */
   fidelity?: FidelityReport;
+  /**
+   * Determinism outcome, present when `deterministic: true` was set: the
+   * content digest plus what the date-stamp rewrite did.
+   */
+  deterministic?: DeterminismReport;
 }
 
 export interface QualityReportInput {
@@ -63,6 +69,8 @@ export interface QualityReportInput {
   warnings?: QualityWarning[];
   /** Render-fidelity outcome; present when verification was enabled (measured or skipped). */
   fidelity?: FidelityReport;
+  /** Determinism outcome; present when `deterministic: true` was set. */
+  deterministic?: DeterminismReport;
 }
 
 /**
@@ -94,5 +102,6 @@ export function buildQualityReport(input: QualityReportInput): QualityReport {
     ],
     warnings: input.warnings ?? [],
     ...(input.fidelity !== undefined ? { fidelity: input.fidelity } : {}),
+    ...(input.deterministic !== undefined ? { deterministic: input.deterministic } : {}),
   };
 }

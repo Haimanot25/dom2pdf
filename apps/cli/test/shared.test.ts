@@ -172,6 +172,13 @@ describe("buildConvertOptions", () => {
     expect(absent.diagnostics).toBeUndefined();
   });
 
+  it("maps --deterministic onto the deterministic option and omits it otherwise", () => {
+    const enabled = buildConvertOptions(flags({ deterministic: true }), { kind: "stdin" }, STDIN_HTML);
+    expect(enabled.deterministic).toBe(true);
+    const absent = buildConvertOptions(flags(), { kind: "stdin" }, STDIN_HTML);
+    expect(absent.deterministic).toBeUndefined();
+  });
+
   it("rejects non-integer numeric flags", () => {
     expect(() => buildConvertOptions(flags({ minPages: "2.5" }), { kind: "stdin" }, STDIN_HTML)).toThrow(
       UsageError,

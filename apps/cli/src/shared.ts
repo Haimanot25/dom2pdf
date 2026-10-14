@@ -156,6 +156,7 @@ export interface ConvertFlags {
   maxOutputBytes?: string;
   maxConcurrent?: string;
   diagnostics?: boolean;
+  deterministic?: boolean;
   json?: boolean;
   quiet?: boolean;
 }
@@ -232,6 +233,7 @@ export function buildConvertOptions(
   }
   if (Object.keys(quality).length > 0) options.quality = quality as ConvertOptions["quality"];
   if (flags.diagnostics === true) options.diagnostics = true;
+  if (flags.deterministic === true) options.deterministic = true;
   if (Object.keys(limits).length > 0) options.limits = limits as ConvertOptions["limits"];
   if (Object.keys(security).length > 0) options.security = security as ConvertOptions["security"];
   return options;

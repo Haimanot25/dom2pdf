@@ -114,3 +114,21 @@ First public alpha — the six-phase foundation, in order:
 - CLI: `--diagnostics` writes the bundle next to the intended output as
   `<output>.diag/` (`meta.json`, `page.html`, `screenshot.jpg`). The local
   web UI always collects forensics so its error card can show what failed.
+
+### Phase 8c — Deterministic (reproducible) output
+- New `deterministic` convert option (default `false`): the two date stamps
+  Chromium writes (`/CreationDate`, `/ModDate` — the only byte-level
+  differences between repeated conversions of the same input on the same
+  browser build) are zeroed in place, byte-length-preserving so the xref
+  table stays valid. Repeated conversions are byte-identical; e2e proves it
+  with a double-convert SHA-256 equality assertion (relative, no golden
+  binaries).
+- The report gains `deterministic: { contentDigest, normalizedSpans,
+  residual }` plus a `pdf.determinism` check: the content digest is a sha256
+  over page count + per-page extracted text (whitespace-normalized), letting
+  callers verify "same content" independently of the stamps. A date span that
+  cannot be normalized is counted in `residual` and warned about as
+  `determinism.residual` — never silently ignored. Byte identity is a
+  same-machine/same-browser-build property, not a cross-machine guarantee.
+- CLI: `--deterministic` enables the rewrite; the summary prints the content
+  digest and normalized span count.

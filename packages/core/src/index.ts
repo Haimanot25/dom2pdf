@@ -12,6 +12,7 @@ export type { ErrorCode, PageForgeErrorOptions } from "./errors/index.js";
 export { buildQualityReport } from "./quality/report.js";
 export type { QualityReport, QualityCheck, QualityWarning, CheckStatus } from "./quality/report.js";
 export type { FidelityReport, FidelityPageScore, SliceGeometry } from "./quality/fidelity.js";
+export type { DeterminismReport } from "./pdf/determinism.js";
 
 export type { DiagnosticsBundle, ConsoleEntry, RequestRecord } from "./diagnostics/collect.js";
 export { readAttachedDiagnostics } from "./diagnostics/collect.js";

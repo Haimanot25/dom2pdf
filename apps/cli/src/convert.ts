@@ -53,6 +53,12 @@ function printSummary(report: QualityReport, output: string): void {
   console.log(
     `  checks: ${checksPassed} passed${checksWarned > 0 ? `, ${checksWarned} warned` : ""} · warnings: ${report.warnings.length}`,
   );
+  if (report.deterministic !== undefined) {
+    const { contentDigest, normalizedSpans, residual } = report.deterministic;
+    console.log(
+      `  deterministic: content digest sha256:${contentDigest} (${normalizedSpans} date span(s) normalized${residual > 0 ? `, ${residual} residual` : ""})`,
+    );
+  }
   for (const warning of report.warnings) {
     console.log(`  ! [${warning.code}] ${warning.message}`);
   }
@@ -89,6 +95,7 @@ export function registerConvertCommand(program: Command): void {
     .option("--max-output-bytes <n>", "limit: hard cap on generated PDF size in bytes", undefined)
     .option("--max-concurrent <n>", "limit: conversions allowed at once on this converter", undefined)
     .option("--diagnostics", "on failure, write forensics (console, requests, DOM, screenshot) to <output>.diag/")
+    .option("--deterministic", "zero PDF date stamps in place for byte-identical repeated conversions (same browser build)")
     .option("--json", "print the structured quality report as JSON on stdout")
     .option("--quiet", "suppress success output (errors still go to stderr)")
     .action(async (source: string | undefined, flags: ConvertFlags) => {

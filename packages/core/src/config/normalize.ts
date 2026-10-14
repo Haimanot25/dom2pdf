@@ -30,6 +30,8 @@ export const DEFAULTS = {
   fidelityThreshold: 0.8,
   /** Failure forensics are opt-in: the bundle contains page content. */
   diagnosticsEnabled: false,
+  /** Deterministic (byte-reproducible) output is opt-in. */
+  deterministicEnabled: false,
   /** Safety rails on resource usage per conversion. */
   limitsMaxRequests: 500,
 } as const;
@@ -124,6 +126,8 @@ export interface NormalizedOptions {
   fidelity: NormalizedFidelityOptions;
   /** Failure forensics: attach `details.diagnostics` to errors. */
   diagnostics: boolean;
+  /** Deterministic (byte-reproducible) output: zero PDF date stamps in place. */
+  deterministic: boolean;
   limits: NormalizedLimits;
   security: NormalizedSecurityOptions;
   browser: NormalizedBrowserOptions;
@@ -274,6 +278,7 @@ export function normalizeOptions(raw: unknown): NormalizedOptions {
     },
     fidelity: normalizeFidelity(parsed.fidelity),
     diagnostics: parsed.diagnostics ?? DEFAULTS.diagnosticsEnabled,
+    deterministic: parsed.deterministic ?? DEFAULTS.deterministicEnabled,
     limits: {
       maxRequests: parsed.limits?.maxRequests ?? DEFAULTS.limitsMaxRequests,
       maxOutputBytes: parsed.limits?.maxOutputBytes,

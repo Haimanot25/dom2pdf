@@ -307,6 +307,12 @@ export const convertOptionsSchema = z
      * the bundle contains page content and should be treated as sensitive.
      */
     diagnostics: z.boolean().optional(),
+    /**
+     * Deterministic output: zero the PDF date stamps in place so repeated
+     * conversions of the same input are byte-identical on the same browser
+     * build. Off by default.
+     */
+    deterministic: z.boolean().optional(),
     /** Safety rails: network request and output size caps → `RESOURCE_LIMIT_EXCEEDED`. */
     limits: limitsSchema.optional(),
     security: securitySchema.optional(),
