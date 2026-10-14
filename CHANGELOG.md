@@ -5,7 +5,7 @@ All notable changes to PageForge are documented here. Versions follow
 versions, and **error codes may be added in minor releases** (treat unknown
 codes as generic failures).
 
-## 0.1.0-alpha.0 (unreleased)
+## 0.1.0-alpha.0 (2026-10-14)
 
 First public alpha — the six-phase foundation, in order:
 
