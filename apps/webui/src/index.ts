@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import { Command } from "commander";
-import { createConverter } from "pageforge-pdf";
+import { createConverter } from "dom2pdf-js";
 import { createWebServer } from "./server.js";
 
 /**
- * pageforge-web — a localhost-only web UI for PageForge.
+ * dom2pdf-web — a localhost-only web UI for dom2pdf.
  *
  * Start it, open the printed URL, paste a target URL, get a PDF. The server
  * binds to 127.0.0.1 by default and applies the library's full security
@@ -20,7 +20,7 @@ interface WebFlags {
 
 const program = new Command();
 program
-  .name("pageforge-web")
+  .name("dom2pdf-web")
   .description("local web UI — convert a target URL to PDF from your browser")
   .option("--port <n>", "port to listen on (0 = ephemeral, printed on startup)", "8787")
   .option("--host <host>", "bind address; keep loopback unless you know why", "127.0.0.1")
@@ -38,13 +38,13 @@ const flags = program.opts<WebFlags>();
 // are isolated per browser context, so logging loudly and staying up is sound.
 process.on("unhandledRejection", (reason) => {
   const detail = reason instanceof Error ? (reason.stack ?? reason.message) : String(reason);
-  console.error(`[pageforge-web] unhandled promise rejection (kept running):\n${detail}`);
+  console.error(`[dom2pdf-web] unhandled promise rejection (kept running):\n${detail}`);
 });
 
 // After an uncaught *exception* the process state is undefined — log and exit
 // so the user restarts cleanly instead of being served garbage.
 process.on("uncaughtException", (error) => {
-  console.error(`[pageforge-web] uncaught exception, exiting:\n${error.stack ?? error.message}`);
+  console.error(`[dom2pdf-web] uncaught exception, exiting:\n${error.stack ?? error.message}`);
   process.exit(1);
 });
 
@@ -61,7 +61,7 @@ const server = createWebServer({
   converter,
   allowLoopback: flags.allowLoopback === true,
   allowPrivateNetwork: flags.allowPrivateNetwork === true,
-  onLog: (message) => console.log(`[pageforge-web] ${message}`),
+  onLog: (message) => console.log(`[dom2pdf-web] ${message}`),
 });
 
 server.on("error", (error: NodeJS.ErrnoException) => {
@@ -76,7 +76,7 @@ server.on("error", (error: NodeJS.ErrnoException) => {
 server.listen(port, flags.host, () => {
   const address = server.address();
   const boundPort = typeof address === "object" && address !== null ? address.port : port;
-  console.log(`pageforge-web listening on http://${flags.host}:${boundPort}`);
+  console.log(`dom2pdf-web listening on http://${flags.host}:${boundPort}`);
   console.log(
     `  policy: loopback ${flags.allowLoopback === true ? "ALLOWED" : "denied"}, ` +
       `private network ${flags.allowPrivateNetwork === true ? "ALLOWED" : "denied"}`,

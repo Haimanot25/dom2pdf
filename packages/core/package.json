@@ -1,7 +1,7 @@
 {
-  "name": "pageforge-pdf",
+  "name": "dom2pdf-js",
   "version": "0.1.0-alpha.0",
-  "description": "PageForge — HTML-to-PDF conversion engine built on Playwright's Chromium",
+  "description": "dom2pdf — HTML-to-PDF conversion engine built on Playwright's Chromium",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",

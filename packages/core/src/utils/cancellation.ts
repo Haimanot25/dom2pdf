@@ -1,8 +1,8 @@
-import { PageForgeError } from "../errors/index.js";
+import { Dom2PdfError } from "../errors/index.js";
 
 /** Typed error for cooperative cancellation via `AbortSignal`. */
-export function cancelledError(message = "Conversion was cancelled"): PageForgeError {
-  return new PageForgeError({ code: "CANCELLED", message });
+export function cancelledError(message = "Conversion was cancelled"): Dom2PdfError {
+  return new Dom2PdfError({ code: "CANCELLED", message });
 }
 
 /** Throws `CANCELLED` immediately if the signal is already aborted. */

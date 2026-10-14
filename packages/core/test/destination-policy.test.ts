@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PageForgeError } from "../src/errors/index.js";
+import { Dom2PdfError } from "../src/errors/index.js";
 import {
   assertIpAllowed,
   assertUrlDestinationAllowed,
@@ -14,28 +14,28 @@ function fakeDns(...addresses: string[]): DnsLookup {
   return async () => addresses.map((address) => ({ address }));
 }
 
-function expectBlocked(fn: () => unknown): PageForgeError {
+function expectBlocked(fn: () => unknown): Dom2PdfError {
   let caught: unknown;
   try {
     fn();
   } catch (error) {
     caught = error;
   }
-  expect(caught).toBeInstanceOf(PageForgeError);
-  const error = caught as PageForgeError;
+  expect(caught).toBeInstanceOf(Dom2PdfError);
+  const error = caught as Dom2PdfError;
   expect(error.code).toBe("BLOCKED_URL");
   return error;
 }
 
-async function expectBlockedAsync(promise: Promise<unknown>): Promise<PageForgeError> {
+async function expectBlockedAsync(promise: Promise<unknown>): Promise<Dom2PdfError> {
   let caught: unknown;
   try {
     await promise;
   } catch (error) {
     caught = error;
   }
-  expect(caught).toBeInstanceOf(PageForgeError);
-  const error = caught as PageForgeError;
+  expect(caught).toBeInstanceOf(Dom2PdfError);
+  const error = caught as Dom2PdfError;
   expect(error.code).toBe("BLOCKED_URL");
   return error;
 }
@@ -72,7 +72,7 @@ describe("classifyIp", () => {
   });
 
   it("rejects non-IP input", () => {
-    expect(() => classifyIp("not-an-ip")).toThrowError(PageForgeError);
+    expect(() => classifyIp("not-an-ip")).toThrowError(Dom2PdfError);
   });
 });
 
@@ -156,7 +156,7 @@ describe("assertUrlDestinationAllowed", () => {
 
   it("maps DNS failures to NAVIGATION_FAILED", async () => {
     const failing: DnsLookup = async () => {
-      throw new PageForgeError({ code: "NAVIGATION_FAILED", message: "DNS lookup failed" });
+      throw new Dom2PdfError({ code: "NAVIGATION_FAILED", message: "DNS lookup failed" });
     };
     await expect(assertUrlDestinationAllowed("http://nope.example/", DENY_ALL, failing)).rejects.toMatchObject({
       code: "NAVIGATION_FAILED",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PageForgeError } from "pageforge-pdf";
+import { Dom2PdfError } from "dom2pdf-js";
 import type { BenchmarkEngine, EngineAvailability, EngineTimedRun } from "../src/engines/types.js";
 import { ENGINE_NAMES, runBenchmark } from "../src/run.js";
 import type { BenchmarkScenario } from "../src/scenarios.js";
@@ -48,15 +48,15 @@ function fakeEngine(options: FakeEngineOptions = {}): FakeEngineHandle {
   return { engine, counts };
 }
 
-async function expectInvalidInputAsync(fn: () => Promise<unknown>): Promise<PageForgeError> {
+async function expectInvalidInputAsync(fn: () => Promise<unknown>): Promise<Dom2PdfError> {
   let caught: unknown;
   try {
     await fn();
   } catch (error) {
     caught = error;
   }
-  expect(caught).toBeInstanceOf(PageForgeError);
-  const error = caught as PageForgeError;
+  expect(caught).toBeInstanceOf(Dom2PdfError);
+  const error = caught as Dom2PdfError;
   expect(error.code).toBe("INVALID_INPUT");
   return error;
 }
@@ -192,7 +192,7 @@ describe("runBenchmark harness", () => {
     });
     expect(progress.some((line) => line.includes("simple"))).toBe(true);
     expect(progress.some((line) => line.includes("fake"))).toBe(true);
-    expect(report.meta.tool).toBe("pageforge-benchmark");
+    expect(report.meta.tool).toBe("dom2pdf-benchmark");
     expect(report.meta.version).toMatch(/^\d+\.\d+\.\d+/);
     expect(report.meta.chromiumVersion).toBe("156.0.1");
     expect(report.meta.platform).toBeTruthy();
@@ -202,6 +202,6 @@ describe("runBenchmark harness", () => {
   });
 
   it("exports the four engine names the CLI validates against", () => {
-    expect([...ENGINE_NAMES]).toEqual(["pageforge", "playwright-raw", "html2pdf.js", "weasyprint"]);
+    expect([...ENGINE_NAMES]).toEqual(["dom2pdf", "playwright-raw", "html2pdf.js", "weasyprint"]);
   });
 });

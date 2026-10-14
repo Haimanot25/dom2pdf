@@ -1,6 +1,6 @@
 import path from "node:path";
 import { InvalidArgumentError } from "commander";
-import { isPageForgeError, type ConvertOptions, type ErrorCode } from "pageforge-pdf";
+import { isDom2PdfError, type ConvertOptions, type ErrorCode } from "dom2pdf-js";
 
 /**
  * Shared CLI plumbing: stable exit codes, error reporting (human + JSON),
@@ -30,7 +30,7 @@ export class UsageError extends Error {
 /** Exit code for an error produced by the command implementation. */
 export function exitCodeFor(error: unknown): number {
   if (error instanceof UsageError) return EXIT_CODES.usage;
-  if (!isPageForgeError(error)) return EXIT_CODES.error;
+  if (!isDom2PdfError(error)) return EXIT_CODES.error;
   const code: ErrorCode = error.code;
   if (code === "QUALITY_POLICY_FAILED") return EXIT_CODES.qualityPolicy;
   if (code === "CANCELLED") return EXIT_CODES.cancelled;
@@ -38,7 +38,7 @@ export function exitCodeFor(error: unknown): number {
 }
 
 export function errorToText(error: unknown): string {
-  if (isPageForgeError(error)) {
+  if (isDom2PdfError(error)) {
     return `Error [${error.code}]: ${error.message}`;
   }
   if (error instanceof Error) {
@@ -48,7 +48,7 @@ export function errorToText(error: unknown): string {
 }
 
 export function errorToJson(error: unknown): Record<string, unknown> {
-  if (isPageForgeError(error)) return { ...error.toJSON() };
+  if (isDom2PdfError(error)) return { ...error.toJSON() };
   if (error instanceof Error) return { name: error.name, message: error.message };
   return { name: "Error", message: String(error) };
 }

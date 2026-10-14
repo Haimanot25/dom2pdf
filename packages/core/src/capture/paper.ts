@@ -1,6 +1,6 @@
 import type { NormalizedPdfOptions, NormalizedViewport } from "../config/normalize.js";
 import type { PaperFormat } from "../config/schema.js";
-import { PageForgeError } from "../errors/index.js";
+import { Dom2PdfError } from "../errors/index.js";
 
 /**
  * Paper-fit computation for screen mode.
@@ -35,7 +35,7 @@ export function lengthToPx(value: string | number): number {
   if (typeof value === "number") return value;
   const match = /^\s*(\d+(?:\.\d+)?)\s*(px|in|cm|mm)?\s*$/i.exec(value);
   if (match === null) {
-    throw new PageForgeError({
+    throw new Dom2PdfError({
       code: "INVALID_INPUT",
       message: `Unsupported length "${value}"; use a number (px) or a string with units px, in, cm, or mm`,
       details: { value },

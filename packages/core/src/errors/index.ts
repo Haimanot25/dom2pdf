@@ -1,7 +1,7 @@
 /**
  * Typed errors with stable, machine-readable codes.
  *
- * These codes are part of PageForge's public API contract: they are safe to
+ * These codes are part of dom2pdf's public API contract: they are safe to
  * branch on programmatically. New codes may be added in minor releases;
  * existing codes are never renamed or removed within a major version.
  */
@@ -41,7 +41,7 @@ export const ERROR_CODES = [
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
 
-export interface PageForgeErrorOptions {
+export interface Dom2PdfErrorOptions {
   message: string;
   code: ErrorCode;
   /** Structured, sanitized context (never include credentials). */
@@ -50,9 +50,9 @@ export interface PageForgeErrorOptions {
   cause?: unknown;
 }
 
-/** All PageForge errors extend this class and carry a stable `code`. */
-export class PageForgeError extends Error {
-  override readonly name = "PageForgeError";
+/** All dom2pdf errors extend this class and carry a stable `code`. */
+export class Dom2PdfError extends Error {
+  override readonly name = "Dom2PdfError";
   readonly code: ErrorCode;
   /**
    * Structured, sanitized context. Set at construction; on failure paths it
@@ -61,7 +61,7 @@ export class PageForgeError extends Error {
    */
   details: Record<string, unknown> | undefined;
 
-  constructor(options: PageForgeErrorOptions) {
+  constructor(options: Dom2PdfErrorOptions) {
     super(options.message, options.cause === undefined ? undefined : { cause: options.cause });
     this.code = options.code;
     this.details = options.details;
@@ -74,9 +74,9 @@ export class PageForgeError extends Error {
   }
 }
 
-/** Structural check so serialized/cross-realm errors still identify as PageForge errors. */
-export function isPageForgeError(value: unknown): value is PageForgeError {
-  if (value instanceof PageForgeError) return true;
+/** Structural check so serialized/cross-realm errors still identify as dom2pdf errors. */
+export function isDom2PdfError(value: unknown): value is Dom2PdfError {
+  if (value instanceof Dom2PdfError) return true;
   return (
     typeof value === "object" &&
     value !== null &&
@@ -88,11 +88,11 @@ export function isPageForgeError(value: unknown): value is PageForgeError {
   );
 }
 
-/** Wraps an arbitrary error as a PageForge error, preserving PageForge errors as-is. */
-export function toPageForgeError(
+/** Wraps an arbitrary error as a dom2pdf error, preserving dom2pdf errors as-is. */
+export function toDom2PdfError(
   value: unknown,
   fallback: { code: ErrorCode; message: string },
-): PageForgeError {
-  if (value instanceof PageForgeError) return value;
-  return new PageForgeError({ code: fallback.code, message: fallback.message, cause: value });
+): Dom2PdfError {
+  if (value instanceof Dom2PdfError) return value;
+  return new Dom2PdfError({ code: fallback.code, message: fallback.message, cause: value });
 }

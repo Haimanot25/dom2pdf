@@ -1,7 +1,7 @@
 /**
- * PageForge benchmark harness — deterministic scenarios, honest results.
+ * dom2pdf benchmark harness — deterministic scenarios, honest results.
  *
- * The CLI (`pageforge benchmark`) is a thin wrapper around `runBenchmark()`;
+ * The CLI (`dom2pdf benchmark`) is a thin wrapper around `runBenchmark()`;
  * everything here is usable as a library too.
  */
 export { runBenchmark, ENGINE_NAMES, createDefaultEngines } from "./run.js";

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { NormalizedQualityOptions } from "../src/config/normalize.js";
-import { PageForgeError } from "../src/errors/index.js";
+import { Dom2PdfError } from "../src/errors/index.js";
 import { assertQualityPolicy, qualityViolations, type QualityMetrics } from "../src/quality/policy.js";
 import { buildQualityReport } from "../src/quality/report.js";
 
@@ -94,8 +94,8 @@ describe("assertQualityPolicy", () => {
       assertQualityPolicy(policy({ minPages: 10 }), metrics(), report());
       throw new Error("expected assertQualityPolicy to throw");
     } catch (error) {
-      expect(error).toBeInstanceOf(PageForgeError);
-      const pageForgeError = error as PageForgeError;
+      expect(error).toBeInstanceOf(Dom2PdfError);
+      const pageForgeError = error as Dom2PdfError;
       expect(pageForgeError.code).toBe("QUALITY_POLICY_FAILED");
       expect(pageForgeError.message).toContain("expected at least 10 page(s), measured 3");
       const violations = pageForgeError.details?.["violations"] as Array<{ rule: string }>;

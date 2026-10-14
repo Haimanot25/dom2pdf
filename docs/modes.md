@@ -1,6 +1,6 @@
 # Rendering modes
 
-PageForge renders through Chromium's own print pipeline — there is no
+dom2pdf renders through Chromium's own print pipeline — there is no
 independent layout engine. What Chromium would put in its print preview is
 what you get, within the limits of the PDF format. Pixel-perfect fidelity
 between screen and print is **not** claimed and not measured.
@@ -19,7 +19,7 @@ await converter.convert({
     margin: { top: "20mm", bottom: "20mm" },
     landscape: false,
     scale: 1, // 0.1–2
-    printBackground: true, // PageForge default (Chromium's default is false)
+    printBackground: true, // dom2pdf default (Chromium's default is false)
     preferCSSPageSize: false, // true → the page's @page size wins
     pageRanges: "1-5, 8",
     outline: false, // embed heading outline

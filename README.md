@@ -1,8 +1,8 @@
-# PageForge
+# dom2pdf
 
-**PageForge** is an open-source HTML-to-PDF conversion engine built on Playwright's Chromium. It converts URLs, HTML strings, and explicitly-permitted local HTML files into PDFs that preserve website appearance as closely as the browser and the PDF format allow, keeping text selectable and searchable wherever possible.
+**dom2pdf** is an open-source HTML-to-PDF conversion engine built on Playwright's Chromium. It converts URLs, HTML strings, and explicitly-permitted local HTML files into PDFs that preserve website appearance as closely as the browser and the PDF format allow, keeping text selectable and searchable wherever possible.
 
-> **Status: pre-alpha (Phase 8 of 8 — complete; alpha publish pending).** This repository is under active construction. Both rendering modes work — `document` (print CSS) and `screen` (paper-fit output policy) — the readiness phase (including adaptive per-resource patience and lazy-load drain) plus structured quality checks/policies are in place, every conversion verifies its own output (render-fidelity comparison against the live page, failure forensics, optional byte-reproducible output), the `pageforge` CLI (`convert`, `inspect`, `benchmark`) and the local `pageforge-web` UI are usable, every conversion runs behind an enforced request policy with resource limits, CI runs the full gate, and the production Docker image keeps Chromium's sandbox on. See [Roadmap](#roadmap) — no feature is documented here before it works.
+> **Status: pre-alpha (Phase 8 of 8 — complete; alpha publish pending).** This repository is under active construction. Both rendering modes work — `document` (print CSS) and `screen` (paper-fit output policy) — the readiness phase (including adaptive per-resource patience and lazy-load drain) plus structured quality checks/policies are in place, every conversion verifies its own output (render-fidelity comparison against the live page, failure forensics, optional byte-reproducible output), the `dom2pdf` CLI (`convert`, `inspect`, `benchmark`) and the local `dom2pdf-web` UI are usable, every conversion runs behind an enforced request policy with resource limits, CI runs the full gate, and the production Docker image keeps Chromium's sandbox on. See [Roadmap](#roadmap) — no feature is documented here before it works.
 
 ## Quick start
 
@@ -11,10 +11,10 @@
 pnpm build
 
 # CLI (from this repository)
-pnpm pageforge convert https://example.com -o example.pdf
-pnpm pageforge convert ./report.html --format A4 --margin 15mm --json
-pnpm pageforge inspect example.pdf
-pnpm pageforge benchmark --iterations 3 --scenarios simple   # multi-engine benchmark
+pnpm dom2pdf convert https://example.com -o example.pdf
+pnpm dom2pdf convert ./report.html --format A4 --margin 15mm --json
+pnpm dom2pdf inspect example.pdf
+pnpm dom2pdf benchmark --iterations 3 --scenarios simple   # multi-engine benchmark
 
 # Local web UI — open the printed URL, paste a target URL, get a PDF
 pnpm web                                     # http://127.0.0.1:8787
@@ -22,7 +22,7 @@ pnpm web --port 9000 --allow-loopback        # custom port; test localhost targe
 ```
 
 ```ts
-import { createConverter } from "pageforge-pdf";
+import { createConverter } from "dom2pdf-js";
 
 const converter = await createConverter();
 try {
@@ -97,14 +97,14 @@ Every conversion can verify itself after rendering — none of this claims pixel
 
 ### Security defaults
 
-- Chromium sandbox **enabled** (Playwright's own default disables it; PageForge does not).
+- Chromium sandbox **enabled** (Playwright's own default disables it; dom2pdf does not).
 - Private, link-local, and loopback destinations blocked unless explicitly allowed.
 - Local file reads denied unless explicitly allowlisted; symlink escapes are detected.
 - Unknown options are rejected (`UNSUPPORTED_OPTION`), never silently ignored.
 
 ## Errors
 
-All failures throw `PageForgeError` with a stable machine-readable `code` such as `INVALID_INPUT`, `UNSUPPORTED_OPTION`, `BLOCKED_URL`, `LOCAL_FILE_NOT_ALLOWED`, `NAVIGATION_FAILED`, `READINESS_TIMEOUT`, `RENDER_TIMEOUT`, `PDF_VALIDATION_FAILED`, `QUALITY_POLICY_FAILED`, `BROWSER_FAILURE`, `CANCELLED`, or `CONVERTER_CLOSED`.
+All failures throw `Dom2PdfError` with a stable machine-readable `code` such as `INVALID_INPUT`, `UNSUPPORTED_OPTION`, `BLOCKED_URL`, `LOCAL_FILE_NOT_ALLOWED`, `NAVIGATION_FAILED`, `READINESS_TIMEOUT`, `RENDER_TIMEOUT`, `PDF_VALIDATION_FAILED`, `QUALITY_POLICY_FAILED`, `BROWSER_FAILURE`, `CANCELLED`, or `CONVERTER_CLOSED`.
 
 Conversions accept an optional `signal: AbortSignal`; aborting fails fast with `CANCELLED` and cleans up the browser context. The CLI maps failures to stable exit codes: `0` ok, `2` usage, `3` conversion error, `4` quality-policy rejection, `130` SIGINT.
 
@@ -137,10 +137,10 @@ Requires Node.js ≥ 22.13 (24 LTS recommended) and pnpm.
 1. ✅ **Phase 1 — Foundation**: workspace, strict TypeScript, working URL/HTML/file → PDF, security pre-checks, deadlines.
 2. ✅ **Phase 2 — Core rendering**: screen mode with paper-fit output policy, print CSS/paged media coverage, pagination, cancellation (`AbortSignal`), structured errors.
 3. ✅ **Phase 3 — Readiness & quality**: font/image/network/selector readiness under one deadline, observed resource diagnostics, text extraction checks, quality policies (`QUALITY_POLICY_FAILED`).
-4. ✅ **Phase 4 — CLI & documentation**: `pageforge convert|inspect` with `--help`, JSON reports, stable exit codes (0/2/3/4/130), SIGINT cancellation; guides under `docs/`.
+4. ✅ **Phase 4 — CLI & documentation**: `dom2pdf convert|inspect` with `--help`, JSON reports, stable exit codes (0/2/3/4/130), SIGINT cancellation; guides under `docs/`.
 5. ✅ **Phase 5 — Security & reliability**: request-layer policies at the network layer (`BLOCKED_REDIRECT`, `BLOCKED_RESOURCE`, scripted-navigation blocks), resource limits (`RESOURCE_LIMIT_EXCEEDED`: requests, output bytes, fail-fast concurrency cap), credential redaction on error paths.
-6. ✅ **Phase 6 — Benchmark & alpha**: `pageforge benchmark` (deterministic fixtures; PageForge vs raw-Playwright baseline vs html2pdf.js vs WeasyPrint with honest skips), GitHub Actions CI, production Docker image (sandbox on), release docs.
-7. ✅ **Local web UI (`pageforge-web`)**: localhost-only URL→PDF form; the full security policy applies (loopback/private targets need explicit server flags; the UI cannot escalate).
+6. ✅ **Phase 6 — Benchmark & alpha**: `dom2pdf benchmark` (deterministic fixtures; dom2pdf vs raw-Playwright baseline vs html2pdf.js vs WeasyPrint with honest skips), GitHub Actions CI, production Docker image (sandbox on), release docs.
+7. ✅ **Local web UI (`dom2pdf-web`)**: localhost-only URL→PDF form; the full security policy applies (loopback/private targets need explicit server flags; the UI cannot escalate).
 8. ✅ **Phase 7 — Adaptive readiness**: per-resource patience (`readiness.slowResourceMs`) so one hung asset cannot burn the shared deadline, and a bounded lazy-load drain (`readiness.lazyLoad`) so `loading="lazy"` content is actually fetched.
 9. ✅ **Phase 8 — Verified output**: render-fidelity verification (`report.fidelity`, honest skip rules), failure forensics (`error.details.diagnostics`, CLI `--diagnostics`, always-on in the web UI), and deterministic byte-reproducible output (`deterministic`, CLI `--deterministic`, content digest).
 

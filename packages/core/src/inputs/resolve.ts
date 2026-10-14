@@ -1,6 +1,6 @@
 import { pathToFileURL } from "node:url";
 import type { NormalizedOptions } from "../config/normalize.js";
-import { PageForgeError } from "../errors/index.js";
+import { Dom2PdfError } from "../errors/index.js";
 import {
   assertLocalFileAllowed,
   assertUrlDestinationAllowed,
@@ -48,7 +48,7 @@ export async function prepareInput(
       if (options.input.baseUrl !== undefined) {
         const url = await assertUrlDestinationAllowed(options.input.baseUrl, destinationPolicy, dnsLookup);
         if (url.username.length > 0 || url.password.length > 0) {
-          throw new PageForgeError({
+          throw new Dom2PdfError({
             code: "INVALID_INPUT",
             message: "input.baseUrl must not contain credentials",
             details: { baseUrl: sanitizeUrl(url) },

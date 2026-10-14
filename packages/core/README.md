@@ -1,14 +1,14 @@
-# pageforge-pdf
+# dom2pdf-js
 
 HTML-to-PDF conversion built on Playwright's Chromium — URL, HTML string, or
 explicitly-permitted local file in, PDF plus a structured quality report out.
 
 ```bash
-npm install pageforge-pdf
+npm install dom2pdf-js
 ```
 
 ```ts
-import { createConverter } from "pageforge-pdf";
+import { createConverter } from "dom2pdf-js";
 
 const converter = await createConverter();
 try {
@@ -52,10 +52,10 @@ Requires Node.js >= 22.13. Playwright's Chromium is installed as part of
 
 ## Errors
 
-Every failure throws `PageForgeError` with a stable `code`
+Every failure throws `Dom2PdfError` with a stable `code`
 (`BLOCKED_URL`, `NAVIGATION_FAILED`, `READINESS_TIMEOUT`,
 `QUALITY_POLICY_FAILED`, `CANCELLED`, …) that is safe to branch on.
 Conversions accept an `AbortSignal` and fail fast with `CANCELLED`.
 
-Full API reference, guides, and source: see the PageForge repository
+Full API reference, guides, and source: see the dom2pdf repository
 (README and `docs/`).

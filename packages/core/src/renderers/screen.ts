@@ -1,5 +1,5 @@
 import { computePaperFit } from "../capture/paper.js";
-import { PageForgeError } from "../errors/index.js";
+import { Dom2PdfError } from "../errors/index.js";
 import { raceWithAbort } from "../utils/cancellation.js";
 import { Deadline } from "../utils/deadline.js";
 import { withTimeout } from "../utils/async.js";
@@ -44,7 +44,7 @@ export const screenRenderer: Renderer = {
           page.pdf(pdfOptions),
           deadline.remainingMs(),
           () =>
-            new PageForgeError({
+            new Dom2PdfError({
               code: "RENDER_TIMEOUT",
               message: `PDF rendering exceeded the ${options.render.timeoutMs}ms render deadline`,
               details: { stage: "render", mode: "screen", timeoutMs: options.render.timeoutMs },
@@ -62,8 +62,8 @@ export const screenRenderer: Renderer = {
         },
       };
     } catch (cause) {
-      if (cause instanceof PageForgeError) throw cause;
-      throw new PageForgeError({
+      if (cause instanceof Dom2PdfError) throw cause;
+      throw new Dom2PdfError({
         code: "BROWSER_FAILURE",
         message: `Chromium failed to generate the PDF${cause instanceof Error ? `: ${cause.message}` : ""}`,
         details: { stage: "render", mode: "screen" },

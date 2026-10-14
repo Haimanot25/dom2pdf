@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import os from "node:os";
-import { PageForgeError } from "pageforge-pdf";
+import { Dom2PdfError } from "dom2pdf-js";
 import { createHtml2PdfEngine } from "./engines/html2pdf.js";
-import { createPageForgeEngine } from "./engines/pageforge.js";
+import { createDom2PdfEngine } from "./engines/dom2pdf.js";
 import { createPlaywrightRawEngine } from "./engines/playwright-raw.js";
 import type { BenchmarkEngine } from "./engines/types.js";
 import { createWeasyPrintEngine } from "./engines/weasyprint.js";
@@ -11,11 +11,11 @@ import { SCENARIOS, SCENARIO_NAMES, type BenchmarkScenario } from "./scenarios.j
 import { computeStats } from "./stats.js";
 
 /** Stable engine names, in report order (used by `--engines`). */
-export const ENGINE_NAMES = ["pageforge", "playwright-raw", "html2pdf.js", "weasyprint"] as const;
+export const ENGINE_NAMES = ["dom2pdf", "playwright-raw", "html2pdf.js", "weasyprint"] as const;
 
 export function createDefaultEngines(): BenchmarkEngine[] {
   return [
-    createPageForgeEngine(),
+    createDom2PdfEngine(),
     createPlaywrightRawEngine(),
     createHtml2PdfEngine(),
     createWeasyPrintEngine(),
@@ -58,7 +58,7 @@ function readPackageVersion(): string {
 
 function assertIntegerOption(name: string, value: number, minimum: number): void {
   if (!Number.isInteger(value) || value < minimum) {
-    throw new PageForgeError({
+    throw new Dom2PdfError({
       code: "INVALID_INPUT",
       message: `${name} must be an integer >= ${minimum}; received ${String(value)}`,
       details: { option: name, value },
@@ -71,7 +71,7 @@ function selectScenarios(names: string[] | undefined): BenchmarkScenario[] {
   const byName = new Map(SCENARIOS.map((scenario) => [scenario.name, scenario]));
   const unknown = names.filter((name) => !byName.has(name));
   if (unknown.length > 0) {
-    throw new PageForgeError({
+    throw new Dom2PdfError({
       code: "INVALID_INPUT",
       message: `Unknown scenario(s): ${unknown.join(", ")} — valid names: ${SCENARIO_NAMES.join(", ")}`,
       details: { unknown, valid: [...SCENARIO_NAMES] },
@@ -89,7 +89,7 @@ function selectEngines(
   const known = new Set(all.map((engine) => engine.name));
   const unknown = names.filter((name) => !known.has(name));
   if (unknown.length > 0) {
-    throw new PageForgeError({
+    throw new Dom2PdfError({
       code: "INVALID_INPUT",
       message: `Unknown engine(s): ${unknown.join(", ")} — valid names: ${[...known].join(", ")}`,
       details: { unknown, valid: [...known] },
@@ -223,7 +223,7 @@ export async function runBenchmark(options: BenchmarkRunOptions = {}): Promise<B
     const cpus = os.cpus();
     return {
       meta: {
-        tool: "pageforge-benchmark",
+        tool: "dom2pdf-benchmark",
         version: readPackageVersion(),
         startedAt: startedAt.toISOString(),
         finishedAt: finishedAt.toISOString(),

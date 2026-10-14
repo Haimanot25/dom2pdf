@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createConverter, PageForgeError, type Converter } from "../packages/core/dist/index.js";
+import { createConverter, Dom2PdfError, type Converter } from "../packages/core/dist/index.js";
 import { startFixtureServer, type FixtureServer } from "./helpers/fixture-server.js";
 
 let server: FixtureServer;
@@ -15,15 +15,15 @@ test.afterAll(async () => {
   await server?.close();
 });
 
-async function expectPolicyError(attempt: Promise<unknown>, code: string): Promise<PageForgeError> {
+async function expectPolicyError(attempt: Promise<unknown>, code: string): Promise<Dom2PdfError> {
   let caught: unknown;
   try {
     await attempt;
   } catch (error) {
     caught = error;
   }
-  expect(caught).toBeInstanceOf(PageForgeError);
-  const error = caught as PageForgeError;
+  expect(caught).toBeInstanceOf(Dom2PdfError);
+  const error = caught as Dom2PdfError;
   expect(error.code).toBe(code);
   return error;
 }
@@ -50,7 +50,7 @@ test.describe("Phase 5: request policy enforcement", () => {
     // Chromium rejects unsafe redirect schemes (http→file) at the network
     // layer before a response is ever delivered, so no Location target
     // surfaces for classification: the native net error IS the defense, and
-    // PageForge reports it honestly as NAVIGATION_FAILED rather than
+    // dom2pdf reports it honestly as NAVIGATION_FAILED rather than
     // pretending a policy layer saw the hop.
     const error = await expectPolicyError(
       converter.convert({

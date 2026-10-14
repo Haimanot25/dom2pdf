@@ -1,5 +1,5 @@
 import type { BrowserContext, Page, Request, Response as PlaywrightResponse, Route } from "playwright";
-import { PageForgeError } from "../errors/index.js";
+import { Dom2PdfError } from "../errors/index.js";
 import { redactUrlCredentials, sanitizeUrl } from "../utils/url.js";
 import {
   assertUrlDestinationAllowed,
@@ -46,13 +46,13 @@ export interface RequestGuardOptions {
 
 export interface RequestGuard {
   /** First blocked HTTP redirect hop. */
-  blockedRedirect: PageForgeError | undefined;
+  blockedRedirect: Dom2PdfError | undefined;
   /** First subresource (or popup/iframe request) rejected by policy. */
-  blockedResource: PageForgeError | undefined;
+  blockedResource: Dom2PdfError | undefined;
   /** First page-scripted main-frame navigation rejected by policy. */
-  blockedNavigation: PageForgeError | undefined;
+  blockedNavigation: Dom2PdfError | undefined;
   /** First applicable failure: security blocks first, then the request cap. */
-  failure(): PageForgeError | undefined;
+  failure(): Dom2PdfError | undefined;
   /**
    * Waits for any in-flight redirect-hop classifications (they are validated
    * asynchronously from response events, see below) so `failure()` cannot
@@ -126,9 +126,9 @@ export async function installRequestGuard(page: Page, options: RequestGuardOptio
 
   let requestCount = 0;
   let limitHit = false;
-  let blockedRedirect: PageForgeError | undefined;
-  let blockedResource: PageForgeError | undefined;
-  let blockedNavigation: PageForgeError | undefined;
+  let blockedRedirect: Dom2PdfError | undefined;
+  let blockedResource: Dom2PdfError | undefined;
+  let blockedNavigation: Dom2PdfError | undefined;
 
   // One DNS answer per hostname per conversion: interception must not turn a
   // request-heavy page into a DNS-heavy one.
@@ -175,7 +175,7 @@ export async function installRequestGuard(page: Page, options: RequestGuardOptio
       await assertUrlDestinationAllowed(url, options.policy, lookup);
     } catch (cause) {
       const isPolicyRejection =
-        cause instanceof PageForgeError &&
+        cause instanceof Dom2PdfError &&
         (cause.code === "BLOCKED_URL" || cause.code === "INVALID_INPUT");
       if (!isPolicyRejection) {
         // DNS/lookup trouble, not a policy verdict: let the browser fail the
@@ -187,14 +187,14 @@ export async function installRequestGuard(page: Page, options: RequestGuardOptio
       const sanitized = sanitizeUrl(url);
       if (request.isNavigationRequest() && request.frame() === page.mainFrame()) {
         if (request.redirectedFrom() !== null) {
-          blockedRedirect ??= new PageForgeError({
+          blockedRedirect ??= new Dom2PdfError({
             code: "BLOCKED_REDIRECT",
             message: `Redirected navigation was blocked by security policy: ${redactUrlCredentials(cause.message)}`,
             details: { ...(cause.details ?? {}), url: sanitized, kind: "redirect" },
             cause,
           });
         } else {
-          blockedNavigation ??= new PageForgeError({
+          blockedNavigation ??= new Dom2PdfError({
             code: "BLOCKED_URL",
             message: `Page attempted to navigate to a blocked destination: ${redactUrlCredentials(cause.message)}`,
             details: { ...(cause.details ?? {}), url: sanitized, kind: "page-navigation" },
@@ -202,7 +202,7 @@ export async function installRequestGuard(page: Page, options: RequestGuardOptio
           });
         }
       } else {
-        blockedResource ??= new PageForgeError({
+        blockedResource ??= new Dom2PdfError({
           code: "BLOCKED_RESOURCE",
           message: `Subresource request was blocked by security policy: ${redactUrlCredentials(cause.message)}`,
           details: { ...(cause.details ?? {}), url: sanitized, kind: "subresource" },
@@ -232,17 +232,17 @@ export async function installRequestGuard(page: Page, options: RequestGuardOptio
       } catch (cause) {
         // Only a policy verdict counts; DNS trouble leaves the failure to the
         // browser, exactly like the routed path above.
-        if (!(cause instanceof PageForgeError) || cause.code !== "BLOCKED_URL") return;
+        if (!(cause instanceof Dom2PdfError) || cause.code !== "BLOCKED_URL") return;
         const sanitized = sanitizeUrl(target);
         if (isMainFrameNavigation) {
-          blockedRedirect ??= new PageForgeError({
+          blockedRedirect ??= new Dom2PdfError({
             code: "BLOCKED_REDIRECT",
             message: `Redirect was blocked by security policy: ${redactUrlCredentials(cause.message)}`,
             details: { ...(cause.details ?? {}), url: sanitized, kind: "redirect" },
             cause,
           });
         } else {
-          blockedResource ??= new PageForgeError({
+          blockedResource ??= new Dom2PdfError({
             code: "BLOCKED_RESOURCE",
             message: `Subresource redirect was blocked by security policy: ${redactUrlCredentials(cause.message)}`,
             details: { ...(cause.details ?? {}), url: sanitized, kind: "subresource-redirect" },
@@ -295,12 +295,12 @@ export async function installRequestGuard(page: Page, options: RequestGuardOptio
     get blockedNavigation() {
       return blockedNavigation;
     },
-    failure(): PageForgeError | undefined {
+    failure(): Dom2PdfError | undefined {
       if (blockedRedirect !== undefined) return blockedRedirect;
       if (blockedResource !== undefined) return blockedResource;
       if (blockedNavigation !== undefined) return blockedNavigation;
       if (limitHit) {
-        return new PageForgeError({
+        return new Dom2PdfError({
           code: "RESOURCE_LIMIT_EXCEEDED",
           message: `Request limit reached: a conversion may make at most ${String(maxRequests)} http(s) request(s)`,
           details: { limit: "maxRequests", maxRequests, counted: requestCount },

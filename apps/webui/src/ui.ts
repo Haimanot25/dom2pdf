@@ -9,7 +9,7 @@ export function renderUi(): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PageForge — local converter</title>
+<title>dom2pdf — local converter</title>
 <style>
   :root { color-scheme: light dark; --accent: #2563eb; --ok: #16a34a; --bad: #dc2626; --warn: #d97706; }
   * { box-sizing: border-box; }
@@ -47,7 +47,7 @@ export function renderUi(): string {
 </head>
 <body>
 <main>
-  <h1>PageForge</h1>
+  <h1>dom2pdf</h1>
   <p class="sub">Local converter — paste a target URL, get a PDF. The full security policy applies: only <code>http(s)</code>, public destinations by default.</p>
   <form id="form">
     <label>Target URL
@@ -90,7 +90,7 @@ export function renderUi(): string {
     <div class="fidelity" id="fidelity"></div>
     <div class="links">
       <a id="open" href="#" target="_blank" rel="noopener">Open PDF</a>
-      <a id="download" href="#" class="secondary" download="pageforge.pdf">Download PDF</a>
+      <a id="download" href="#" class="secondary" download="dom2pdf.pdf">Download PDF</a>
     </div>
   </section>
 
@@ -158,8 +158,8 @@ export function renderUi(): string {
     currentUrl = URL.createObjectURL(new Blob([blob], { type: "application/pdf" }));
     openLink.href = currentUrl;
     downloadLink.href = currentUrl;
-    var host = "pageforge";
-    try { host = new URL(document.getElementById("url").value).hostname || "pageforge"; } catch (e) { /* keep default */ }
+    var host = "dom2pdf";
+    try { host = new URL(document.getElementById("url").value).hostname || "dom2pdf"; } catch (e) { /* keep default */ }
     downloadLink.download = host + "-" + new Date().toISOString().slice(0, 10) + ".pdf";
     result.classList.add("show");
   }

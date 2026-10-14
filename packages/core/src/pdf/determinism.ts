@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { PageForgeError } from "../errors/index.js";
+import { Dom2PdfError } from "../errors/index.js";
 
 /**
  * Deterministic (reproducible) PDF output.
@@ -138,7 +138,7 @@ export function normalizePdfDates(input: Uint8Array): PdfDateNormalization {
  */
 export function digestFromPages(pageCount: number, pageTexts: readonly string[]): string {
   const normalized = pageTexts.map((text) => text.replace(/\s+/g, " ").trim());
-  const payload = `pageforge-text-digest-v1\n${pageCount}\n${normalized.join("\u241e")}`;
+  const payload = `dom2pdf-text-digest-v1\n${pageCount}\n${normalized.join("\u241e")}`;
   return createHash("sha256").update(payload, "utf8").digest("hex");
 }
 
@@ -164,8 +164,8 @@ export async function contentDigest(bytes: Uint8Array): Promise<string> {
       await task.destroy().catch(() => undefined);
     }
   } catch (cause) {
-    if (cause instanceof PageForgeError) throw cause;
-    throw new PageForgeError({
+    if (cause instanceof Dom2PdfError) throw cause;
+    throw new Dom2PdfError({
       code: "PDF_VALIDATION_FAILED",
       message: `Failed to compute the content digest${cause instanceof Error ? `: ${cause.message}` : ""}`,
       cause,

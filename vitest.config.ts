@@ -6,12 +6,12 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   resolve: {
-    // Unit tests import the published entry point (`pageforge-pdf`) from CLI
+    // Unit tests import the published entry point (`dom2pdf-js`) from CLI
     // code; alias it to core *source* so unit runs never depend on a prior
     // build and always test the current code.
     alias: {
-      "pageforge-pdf": path.join(root, "packages/core/src/index.ts"),
-      "pageforge-benchmark": path.join(root, "packages/benchmark/src/index.ts"),
+      "dom2pdf-js": path.join(root, "packages/core/src/index.ts"),
+      "dom2pdf-benchmark": path.join(root, "packages/benchmark/src/index.ts"),
     },
   },
   test: {

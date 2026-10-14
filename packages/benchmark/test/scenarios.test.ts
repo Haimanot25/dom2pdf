@@ -24,9 +24,9 @@ describe("benchmark scenarios", () => {
 
   it("gives the screen scenario its screen-mode pipeline", () => {
     const dashboard = SCENARIOS.find((scenario) => scenario.name === "screen-dashboard");
-    expect(dashboard?.pageforgeOptions?.mode).toBe("screen");
+    expect(dashboard?.dom2pdfOptions?.mode).toBe("screen");
     const simple = SCENARIOS.find((scenario) => scenario.name === "simple");
-    expect(simple?.pageforgeOptions).toBeUndefined();
+    expect(simple?.dom2pdfOptions).toBeUndefined();
   });
 
   it("scales the long document to many paragraphs", () => {

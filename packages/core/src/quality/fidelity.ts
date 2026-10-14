@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import type { Page } from "playwright";
 import { lengthToPx } from "../capture/paper.js";
 import type { NormalizedOptions } from "../config/normalize.js";
-import { isPageForgeError } from "../errors/index.js";
+import { isDom2PdfError } from "../errors/index.js";
 import { raceWithAbort } from "../utils/cancellation.js";
 import { withTimeout } from "../utils/async.js";
 import type { QualityCheck, QualityWarning } from "./report.js";
@@ -46,21 +46,21 @@ const IMAGE_SETTLE_CAP_MS = 1_000;
 /** Guard against absurdly large pageRanges expansions. */
 const MAX_RANGE_PAGES = 10_000;
 
-const VERIFY_ORIGIN = "http://pageforge-verify.test";
+const VERIFY_ORIGIN = "http://dom2pdf-verify.test";
 
 /** Minimal HTML shell: loads pdf.js as a module and signals readiness. */
 const VERIFY_HTML = `<!doctype html>
 <html>
 <head>
 <meta charset="utf-8">
-<title>PageForge verification</title>
+<title>dom2pdf verification</title>
 </head>
 <body>
 <script type="module">
 import * as pdfjsLib from "/pdfjs/pdf.mjs";
 pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdfjs/pdf.worker.mjs";
 window.pdfjsLib = pdfjsLib;
-window.__pageforgeReady = true;
+window.__dom2pdfReady = true;
 </script>
 </body>
 </html>`;
@@ -195,8 +195,8 @@ interface ComparePageResult {
 
 declare global {
   interface Window {
-    __pageforgeReady?: boolean;
-    __pageforgeFidelity?: {
+    __dom2pdfReady?: boolean;
+    __dom2pdfFidelity?: {
       loadPdf(b64: string): Promise<Array<{ width: number; height: number }>>;
       comparePage(input: ComparePageInput): Promise<ComparePageResult>;
     };
@@ -293,7 +293,7 @@ async function pfComparePage(input) {
   };
 }
 
-window.__pageforgeFidelity = { loadPdf: pfLoadPdf, comparePage: pfComparePage };
+window.__dom2pdfFidelity = { loadPdf: pfLoadPdf, comparePage: pfComparePage };
 `;
 
 /** Builds the in-page script: similarity primitives (single source of truth) + driver. */
@@ -401,7 +401,7 @@ export async function measureFidelity(input: MeasureFidelityInput): Promise<Fide
       }
     });
     await verify.goto(`${VERIFY_ORIGIN}/verify.html`);
-    await verify.waitForFunction(() => window.__pageforgeReady === true, null, {
+    await verify.waitForFunction(() => window.__dom2pdfReady === true, null, {
       timeout: PER_CALL_TIMEOUT_MS,
     });
     await verify.addScriptTag({ content: buildDriverSource() });
@@ -410,7 +410,7 @@ export async function measureFidelity(input: MeasureFidelityInput): Promise<Fide
     const sizes = await withTimeout(
       raceWithAbort(
         verify.evaluate((b64) => {
-          const runtime = window.__pageforgeFidelity;
+          const runtime = window.__dom2pdfFidelity;
           if (runtime === undefined) throw new Error("fidelity runtime did not load");
           return runtime.loadPdf(b64);
         }, pdfB64),
@@ -530,7 +530,7 @@ export async function measureFidelity(input: MeasureFidelityInput): Promise<Fide
       const comparison = await withTimeout(
         raceWithAbort(
           verify.evaluate((pageInput) => {
-            const runtime = window.__pageforgeFidelity;
+            const runtime = window.__dom2pdfFidelity;
             if (runtime === undefined) throw new Error("fidelity runtime did not load");
             return runtime.comparePage(pageInput);
           }, {
@@ -570,7 +570,7 @@ export async function measureFidelity(input: MeasureFidelityInput): Promise<Fide
     };
   } catch (cause) {
     // Cooperative cancellation is a conversion-level outcome, not a skip.
-    if (isPageForgeError(cause) && cause.code === "CANCELLED") throw cause;
+    if (isDom2PdfError(cause) && cause.code === "CANCELLED") throw cause;
     return skippedReport(
       `verification infrastructure failed: ${cause instanceof Error ? cause.message : String(cause)}`,
     );

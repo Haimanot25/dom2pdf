@@ -1,5 +1,5 @@
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { PageForgeError } from "../errors/index.js";
+import { Dom2PdfError } from "../errors/index.js";
 import { sanitizeBytesForDisplay } from "../utils/url.js";
 
 export interface PdfInspection {
@@ -54,7 +54,7 @@ export async function inspectPdf(
   const headerVersion = readHeader(bytes);
 
   if (headerVersion === null) {
-    throw new PageForgeError({
+    throw new Dom2PdfError({
       code: "PDF_VALIDATION_FAILED",
       message: "Generated output is missing the %PDF header",
       details: { byteLength, preview: sanitizeBytesForDisplay(bytes) },
@@ -96,8 +96,8 @@ export async function inspectPdf(
       await task.destroy().catch(() => undefined);
     }
   } catch (cause) {
-    if (cause instanceof PageForgeError) throw cause;
-    throw new PageForgeError({
+    if (cause instanceof Dom2PdfError) throw cause;
+    throw new Dom2PdfError({
       code: "PDF_VALIDATION_FAILED",
       message: `Generated output failed PDF structural validation${cause instanceof Error ? `: ${cause.message}` : ""}`,
       details: { byteLength, headerVersion },

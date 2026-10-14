@@ -1,5 +1,5 @@
 import type { Page, Request, Response } from "playwright";
-import { isPageForgeError } from "../errors/index.js";
+import { isDom2PdfError } from "../errors/index.js";
 import { withTimeout } from "../utils/async.js";
 import { sanitizeUrl } from "../utils/url.js";
 
@@ -202,7 +202,7 @@ async function captureArtifacts(page: Page, incomplete: string[]): Promise<{
     const content = await withTimeout(page.content(), 4000, () => new Error("DOM serialization timed out"));
     dom =
       content.length > DOM_CAP_CHARS
-        ? `${content.slice(0, DOM_CAP_CHARS)}\n<!-- pageforge: DOM truncated at ${DOM_CAP_CHARS} characters -->`
+        ? `${content.slice(0, DOM_CAP_CHARS)}\n<!-- dom2pdf: DOM truncated at ${DOM_CAP_CHARS} characters -->`
         : content;
   } catch (cause) {
     incomplete.push(`DOM unavailable: ${messageOf(cause)}`);
@@ -254,7 +254,7 @@ export async function gatherDiagnostics(page: Page, capture: DiagnosticsCapture)
 }
 
 /**
- * Attaches a bundle to the failure. Works for `PageForgeError` (merged into
+ * Attaches a bundle to the failure. Works for `Dom2PdfError` (merged into
  * `details`) and for plain errors that the outer converter wraps later.
  */
 export function attachDiagnostics(error: unknown, bundle: DiagnosticsBundle): void {
@@ -283,5 +283,5 @@ export function readAttachedDiagnostics(error: unknown): DiagnosticsBundle | und
 
 /** Cancellation must stay prompt — forensics never delay or mask it. */
 export function isCancellation(cause: unknown): boolean {
-  return isPageForgeError(cause) && cause.code === "CANCELLED";
+  return isDom2PdfError(cause) && cause.code === "CANCELLED";
 }

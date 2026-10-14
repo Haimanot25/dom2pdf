@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createConverter, PageForgeError, type Converter } from "../packages/core/dist/index.js";
+import { createConverter, Dom2PdfError, type Converter } from "../packages/core/dist/index.js";
 import { startFixtureServer, type FixtureServer } from "./helpers/fixture-server.js";
 
 let server: FixtureServer;
@@ -15,10 +15,10 @@ test.afterAll(async () => {
   await server?.close();
 });
 
-async function expectPolicyRejection(attempt: Promise<unknown>): Promise<PageForgeError> {
+async function expectPolicyRejection(attempt: Promise<unknown>): Promise<Dom2PdfError> {
   const caught = await attempt.then(() => null, (error: unknown) => error);
-  expect(caught).toBeInstanceOf(PageForgeError);
-  const error = caught as PageForgeError;
+  expect(caught).toBeInstanceOf(Dom2PdfError);
+  const error = caught as Dom2PdfError;
   expect(error.code).toBe("QUALITY_POLICY_FAILED");
   return error;
 }

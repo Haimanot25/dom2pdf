@@ -44,7 +44,7 @@ const LEVEL_ORDER: Record<Exclude<LogLevel, "silent">, number> = {
 // The default sink is the only place in the core library permitted to touch stdio.
 /* eslint-disable no-console */
 function defaultSink(record: LogRecord): void {
-  const line = `[pageforge] ${record.scope}: ${record.message}`;
+  const line = `[dom2pdf] ${record.scope}: ${record.message}`;
   const context = record.context !== undefined && Object.keys(record.context).length > 0
     ? record.context
     : undefined;

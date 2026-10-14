@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { chromeUserAgent } from "../src/browser/manager.js";
 import { normalizeOptions, parseConvertOptions } from "../src/config/normalize.js";
-import { PageForgeError } from "../src/errors/index.js";
+import { Dom2PdfError } from "../src/errors/index.js";
 
 const htmlInput = { type: "html" as const, html: "<p>x</p>" };
 
@@ -45,8 +45,8 @@ describe("browser convert options", () => {
       } catch (error) {
         caught = error;
       }
-      expect(caught).toBeInstanceOf(PageForgeError);
-      expect((caught as PageForgeError).code).toBe(code);
+      expect(caught).toBeInstanceOf(Dom2PdfError);
+      expect((caught as Dom2PdfError).code).toBe(code);
     }
   });
 });

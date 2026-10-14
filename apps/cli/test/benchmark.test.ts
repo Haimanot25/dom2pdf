@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ENGINE_NAMES, SCENARIO_NAMES } from "pageforge-benchmark";
+import { ENGINE_NAMES, SCENARIO_NAMES } from "dom2pdf-benchmark";
 import { parseNameList } from "../src/benchmark.js";
 import { UsageError } from "../src/shared.js";
 
@@ -18,7 +18,7 @@ describe("benchmark flag parsing", () => {
   it("rejects unknown names with a usage error listing the valid ones", () => {
     let caught: unknown;
     try {
-      parseNameList("engines", "pageforge,typo-engine", ENGINE_NAMES);
+      parseNameList("engines", "dom2pdf,typo-engine", ENGINE_NAMES);
     } catch (error) {
       caught = error;
     }

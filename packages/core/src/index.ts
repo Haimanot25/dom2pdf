@@ -1,4 +1,4 @@
-/** PageForge — HTML-to-PDF conversion engine built on Playwright's Chromium. */
+/** dom2pdf — HTML-to-PDF conversion engine built on Playwright's Chromium. */
 
 export { createConverter } from "./api/converter.js";
 export type { Converter, ConvertResult, ConvertOptions, CreateConverterOptions } from "./api/types.js";
@@ -6,8 +6,8 @@ export type { Converter, ConvertResult, ConvertOptions, CreateConverterOptions }
 export { PAPER_FORMATS } from "./config/schema.js";
 export type { PaperFormat, FidelityOptions } from "./config/schema.js";
 
-export { PageForgeError, ERROR_CODES, isPageForgeError, toPageForgeError } from "./errors/index.js";
-export type { ErrorCode, PageForgeErrorOptions } from "./errors/index.js";
+export { Dom2PdfError, ERROR_CODES, isDom2PdfError, toDom2PdfError } from "./errors/index.js";
+export type { ErrorCode, Dom2PdfErrorOptions } from "./errors/index.js";
 
 export { buildQualityReport } from "./quality/report.js";
 export type { QualityReport, QualityCheck, QualityWarning, CheckStatus } from "./quality/report.js";

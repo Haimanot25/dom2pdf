@@ -25,7 +25,7 @@ export function runCli(
     });
     const timer = setTimeout(() => {
       child.kill();
-      reject(new Error(`CLI timed out: pageforge ${args.join(" ")}`));
+      reject(new Error(`CLI timed out: dom2pdf ${args.join(" ")}`));
     }, options.timeoutMs ?? 60_000);
     child.on("error", reject);
     child.on("close", (code) => {

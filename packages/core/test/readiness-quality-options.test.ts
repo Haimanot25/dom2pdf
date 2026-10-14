@@ -1,18 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { normalizeOptions, parseConvertOptions } from "../src/config/normalize.js";
-import { PageForgeError } from "../src/errors/index.js";
+import { Dom2PdfError } from "../src/errors/index.js";
 
 const htmlInput = { type: "html" as const, html: "<p>x</p>" };
 
-function expectCode(fn: () => unknown, code: string): PageForgeError {
+function expectCode(fn: () => unknown, code: string): Dom2PdfError {
   let caught: unknown;
   try {
     fn();
   } catch (error) {
     caught = error;
   }
-  expect(caught).toBeInstanceOf(PageForgeError);
-  const error = caught as PageForgeError;
+  expect(caught).toBeInstanceOf(Dom2PdfError);
+  const error = caught as Dom2PdfError;
   expect(error.code).toBe(code);
   return error;
 }

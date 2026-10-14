@@ -1,20 +1,20 @@
-# pageforge-cli
+# dom2pdf-cli
 
-Command-line interface for [PageForge](https://www.npmjs.com/package/pageforge-pdf)
+Command-line interface for [dom2pdf](https://www.npmjs.com/package/dom2pdf-js)
 — convert URLs/HTML to PDF, inspect PDFs, and run the multi-engine benchmark.
 
 ```bash
-npm install -g pageforge-cli
+npm install -g dom2pdf-cli
 ```
 
 ## Commands
 
 ```bash
-pageforge convert https://example.com -o example.pdf
-pageforge convert ./report.html --format A4 --margin 15mm --json
-pageforge convert --stdin -o out.pdf < page.html
-pageforge inspect report.pdf --json
-pageforge benchmark --iterations 3 --scenarios simple
+dom2pdf convert https://example.com -o example.pdf
+dom2pdf convert ./report.html --format A4 --margin 15mm --json
+dom2pdf convert --stdin -o out.pdf < page.html
+dom2pdf inspect report.pdf --json
+dom2pdf benchmark --iterations 3 --scenarios simple
 ```
 
 Useful `convert` flags: `--mode document|screen`, `--format A4|Letter|…`,

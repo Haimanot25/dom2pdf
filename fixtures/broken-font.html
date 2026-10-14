@@ -2,17 +2,17 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>PageForge fixture: broken web font</title>
+    <title>dom2pdf fixture: broken web font</title>
     <style>
       /* The font URL dies mid-response, so the declaration settles in an
          error state — exactly the silent web-font failure waitForFonts
          is meant to surface. */
       @font-face {
-        font-family: "PageForge Missing";
+        font-family: "dom2pdf Missing";
         src: url("/__abort/broken-font.woff2") format("woff2");
       }
       body {
-        font-family: "PageForge Missing", sans-serif;
+        font-family: "dom2pdf Missing", sans-serif;
       }
     </style>
   </head>

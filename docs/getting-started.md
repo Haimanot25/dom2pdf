@@ -1,7 +1,7 @@
 # Getting started
 
-PageForge is an HTML-to-PDF conversion engine built on Playwright's Chromium.
-It ships as a library (`pageforge-pdf`) and a CLI (`pageforge`).
+dom2pdf is an HTML-to-PDF conversion engine built on Playwright's Chromium.
+It ships as a library (`dom2pdf-js`) and a CLI (`dom2pdf`).
 
 > **Status: pre-alpha (Phase 4 of 6).** Everything documented here works today
 > and is covered by tests. Features still being built (request-layer security
@@ -17,8 +17,8 @@ It ships as a library (`pageforge-pdf`) and a CLI (`pageforge`).
 ## Build from source
 
 ```bash
-git clone <repo> pageforge
-cd pageforge
+git clone <repo> dom2pdf
+cd dom2pdf
 pnpm install
 pnpm build          # builds the core library and the CLI
 pnpm test           # unit tests, then end-to-end tests
@@ -27,7 +27,7 @@ pnpm test           # unit tests, then end-to-end tests
 ## Library in 30 seconds
 
 ```ts
-import { createConverter } from "pageforge-pdf";
+import { createConverter } from "dom2pdf-js";
 
 const converter = await createConverter();
 try {
@@ -50,16 +50,16 @@ Inputs: `{ type: "url", url }`, `{ type: "html", html, baseUrl? }`, and
 
 ```bash
 # URL → PDF
-pnpm pageforge convert https://example.com -o example.pdf
+pnpm dom2pdf convert https://example.com -o example.pdf
 
 # Local file → PDF (the CLI grants only the file's own directory)
-pnpm pageforge convert ./report.html -o report.pdf --format A4 --margin 15mm
+pnpm dom2pdf convert ./report.html -o report.pdf --format A4 --margin 15mm
 
 # HTML on stdin, machine-readable report on stdout
-cat page.html | pnpm pageforge convert --stdin --json > /dev/stdout
+cat page.html | pnpm dom2pdf convert --stdin --json > /dev/stdout
 
 # Inspect a PDF that was produced
-pnpm pageforge inspect report.pdf --json
+pnpm dom2pdf inspect report.pdf --json
 ```
 
 Exit codes are stable: `0` success, `2` usage error, `3` conversion failed,

@@ -1,13 +1,13 @@
 # API reference
 
-Entry point: `import { createConverter } from "pageforge-pdf"`.
+Entry point: `import { createConverter } from "dom2pdf-js"`.
 
 ## `createConverter(options?)`
 
 ```ts
 const converter = await createConverter({
   browser: {
-    sandbox: true,        // default true — Chromium's sandbox is never disabled by PageForge
+    sandbox: true,        // default true — Chromium's sandbox is never disabled by dom2pdf
     launchTimeoutMs: 60_000,
   },
   limits: {
@@ -34,7 +34,7 @@ the slot frees as soon as a conversion settles.
 
 Returns `Promise<ConvertResult>`: `{ bytes: Uint8Array, report: QualityReport, save(path) }`.
 
-All failures throw `PageForgeError` with a stable `code` (see
+All failures throw `Dom2PdfError` with a stable `code` (see
 [error codes](#error-codes)).
 
 ### Options
@@ -111,7 +111,7 @@ Measured after rendering; violations throw `QUALITY_POLICY_FAILED` with
 
 #### `fidelity` options (render-fidelity verification)
 
-After the PDF is produced, PageForge re-rasterizes sampled pages inside
+After the PDF is produced, dom2pdf re-rasterizes sampled pages inside
 Chromium (pdf.js) and compares them against screenshots of the live page taken
 under the same media emulation and at the print layout width. The comparison
 runs entirely in-browser (canvas pixel access); no pixel data leaves the
@@ -206,7 +206,7 @@ See [security](security.md). Defaults are the strict ones:
 | --- | --- | --- | --- |
 | `userAgent` | string (1–512 chars) | this Chromium's standard `Chrome` UA | User-Agent sent with every request of the conversion |
 
-PageForge presents a standard `Chrome` UA by default — the `HeadlessChrome`
+dom2pdf presents a standard `Chrome` UA by default — the `HeadlessChrome`
 token removed — because production sites and WAFs frequently serve error
 pages (403/500) to that string, and a conversion engine's job is to render
 the site as its visitors see it. This changes the UA *string* only: TLS and
@@ -316,9 +316,9 @@ minor releases, existing codes are not renamed within a major version.
 ## Helpers
 
 ```ts
-import { inspectPdf, sanitizeUrl, Deadline, classifyIp } from "pageforge-pdf";
+import { inspectPdf, sanitizeUrl, Deadline, classifyIp } from "dom2pdf-js";
 
-// Structural inspection + optional text stats (what `pageforge inspect` uses).
+// Structural inspection + optional text stats (what `dom2pdf inspect` uses).
 const inspection = await inspectPdf(bytes, { extractText: true });
 // → { byteLength, pageCount, headerVersion, text: { totalChars, perPageChars, emptyPages } | null }
 ```

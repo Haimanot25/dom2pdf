@@ -1,5 +1,5 @@
 import type { Page, Response } from "playwright";
-import { PageForgeError } from "../errors/index.js";
+import { Dom2PdfError } from "../errors/index.js";
 import { redactUrlCredentials, sanitizeUrl } from "../utils/url.js";
 import { injectBaseHref, type InputPlan } from "./resolve.js";
 
@@ -29,10 +29,10 @@ export async function applyInput(page: Page, plan: InputPlan, timeoutMs: number)
       throw wrapNavigationFailure(cause, { url: sanitizeUrl(plan.url), source: plan.source, timeoutMs });
     }
     // Chromium's `goto` treats HTTP error statuses as successful navigations
-    // (it would print the error body); PageForge surfaces them as failures
+    // (it would print the error body); dom2pdf surfaces them as failures
     // instead of silently producing a "successful" PDF of a 404 page.
     if (response !== null && response.status() >= 400) {
-      throw new PageForgeError({
+      throw new Dom2PdfError({
         code: "NAVIGATION_FAILED",
         message: `Navigation to ${sanitizeUrl(plan.url)} failed with HTTP ${response.status()}`,
         details: { url: sanitizeUrl(plan.url), source: plan.source, status: response.status() },
@@ -52,19 +52,19 @@ export async function applyInput(page: Page, plan: InputPlan, timeoutMs: number)
   }
 }
 
-function wrapNavigationFailure(cause: unknown, details: Record<string, unknown>): PageForgeError {
-  if (cause instanceof PageForgeError) return cause;
+function wrapNavigationFailure(cause: unknown, details: Record<string, unknown>): Dom2PdfError {
+  if (cause instanceof Dom2PdfError) return cause;
   // Playwright net errors embed the request URL verbatim — credentials included.
   const message = redactUrlCredentials(cause instanceof Error ? cause.message : String(cause));
   if (isTimeoutError(cause)) {
-    return new PageForgeError({
+    return new Dom2PdfError({
       code: "READINESS_TIMEOUT",
       message: `Page did not become ready within the deadline (${String(details["timeoutMs"])}ms): ${message}`,
       details: { stage: "navigation", ...details },
       cause,
     });
   }
-  return new PageForgeError({
+  return new Dom2PdfError({
     code: "NAVIGATION_FAILED",
     message: `Failed to load input: ${message}`,
     details: { stage: "navigation", ...details },

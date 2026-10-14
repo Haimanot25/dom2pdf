@@ -1,6 +1,6 @@
 # Benchmark
 
-`pageforge benchmark` runs a **deterministic** HTML-to-PDF benchmark across
+`dom2pdf benchmark` runs a **deterministic** HTML-to-PDF benchmark across
 multiple engines and reports honest, machine-readable results. Numbers are
 measured, never estimated; engines that cannot run are reported as skipped
 with the reason.
@@ -9,16 +9,16 @@ with the reason.
 
 ```bash
 # Full suite: 4 scenarios × 4 engines, 5 measured runs each (+1 warm-up)
-pageforge benchmark
+dom2pdf benchmark
 
 # Machine-readable JSON on stdout
-pageforge benchmark --json > report.json
+dom2pdf benchmark --json > report.json
 
 # Quick smoke / CI-friendly settings
-pageforge benchmark --iterations 1 --warmup 0 --scenarios simple
+dom2pdf benchmark --iterations 1 --warmup 0 --scenarios simple
 
 # A subset of scenarios or engines
-pageforge benchmark --scenarios print-css,long-document --engines pageforge,playwright-raw
+dom2pdf benchmark --scenarios print-css,long-document --engines dom2pdf,playwright-raw
 ```
 
 From the monorepo: `pnpm benchmark` (builds must exist — `pnpm build` first).
@@ -38,7 +38,7 @@ Exit codes: `0` completed (skips are results, not errors), `2` usage error,
 As a library:
 
 ```ts
-import { runBenchmark, formatReportHuman } from "pageforge-benchmark";
+import { runBenchmark, formatReportHuman } from "dom2pdf-benchmark";
 
 const report = await runBenchmark({ iterations: 3, scenarios: ["simple"] });
 console.log(formatReportHuman(report));
@@ -48,12 +48,12 @@ console.log(formatReportHuman(report));
 
 | Engine | What it is | Notes |
 | --- | --- | --- |
-| `pageforge` | PageForge's full pipeline (isolated context, request policy, readiness, quality report) | required — its failure exits 3 |
-| `playwright-raw` | `setContent` + `page.pdf()` on the same pinned Chromium | required baseline — isolates what PageForge's pipeline adds |
+| `dom2pdf` | dom2pdf's full pipeline (isolated context, request policy, readiness, quality report) | required — its failure exits 3 |
+| `playwright-raw` | `setContent` + `page.pdf()` on the same pinned Chromium | required baseline — isolates what dom2pdf's pipeline adds |
 | `html2pdf.js` | html2canvas + jsPDF running **inside** the same Chromium | informational comparator |
 | `weasyprint` | WeasyPrint CLI as an external process | skipped with an install hint when absent |
 
-**Required vs. informational.** If `pageforge` or `playwright-raw` fails on any
+**Required vs. informational.** If `dom2pdf` or `playwright-raw` fails on any
 scenario the command exits `3` (the comparison pair is the point of the
 suite). Comparator failures are recorded in the report (`status: "failed"`
 with the error) but do not fail the command.
@@ -74,7 +74,7 @@ machine:
 | `simple` | One-page article — fixed per-conversion overhead |
 | `long-document` | 120 deterministic paragraphs — pagination-dominated |
 | `print-css` | `@page` rules, forced breaks, tables — document-mode print pipeline |
-| `screen-dashboard` | CSS-grid dashboard (PageForge renders it in `screen` mode) |
+| `screen-dashboard` | CSS-grid dashboard (dom2pdf renders it in `screen` mode) |
 
 ## How to read the results
 
@@ -86,7 +86,7 @@ machine:
   excluded by the default warm-up (`--warmup 0` includes them — that is a
   deliberate choice for cold-start questions).
 - **Bytes are per-engine, not cross-engine.** html2pdf.js rasterizes pages
-  (JPEG), so its outputs are much larger; PageForge and `playwright-raw`
+  (JPEG), so its outputs are much larger; dom2pdf and `playwright-raw`
   produce native vector PDFs of near-identical size for the same scenario —
   a useful sanity check that the baseline really is the same renderer.
 - **Comparisons are only meaningful on the same machine**, same run.

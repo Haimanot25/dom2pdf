@@ -1,6 +1,6 @@
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { PageForgeError, type ConvertOptions, type QualityReport } from "pageforge-pdf";
+import { Dom2PdfError, type ConvertOptions, type QualityReport } from "dom2pdf-js";
 import { createWebServer, statusForError, type WebConverter } from "../src/server.js";
 
 const fakeReport: QualityReport = {
@@ -62,13 +62,13 @@ afterEach(async () => {
   await stop?.();
 });
 
-describe("pageforge-web server", () => {
+describe("dom2pdf-web server", () => {
   it("serves the UI on GET /", async () => {
     const res = await fetch(`${base}/`);
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/html");
     const html = (await res.text()) as string;
-    expect(html).toContain("PageForge");
+    expect(html).toContain("dom2pdf");
     expect(html).toContain("/api/convert");
     expect(html).toContain("Convert to PDF");
   });
@@ -203,7 +203,7 @@ describe("pageforge-web server", () => {
       ["NAVIGATION_FAILED", 502],
       ["RESOURCE_LIMIT_EXCEEDED", 429],
     ] as const) {
-      state.throw = new PageForgeError({ code, message: `simulated ${code}` });
+      state.throw = new Dom2PdfError({ code, message: `simulated ${code}` });
       const res = await fetch(`${base}/api/convert`, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -224,7 +224,7 @@ describe("pageforge-web server", () => {
 });
 
 describe("statusForError", () => {
-  it("classifies non-PageForge errors as 500", () => {
+  it("classifies non-dom2pdf errors as 500", () => {
     expect(statusForError(new Error("boom"))).toBe(500);
     expect(statusForError(undefined)).toBe(500);
   });

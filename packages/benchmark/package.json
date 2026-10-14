@@ -1,7 +1,7 @@
 {
-  "name": "pageforge-benchmark",
+  "name": "dom2pdf-benchmark",
   "version": "0.1.0-alpha.0",
-  "description": "PageForge — deterministic HTML-to-PDF benchmark harness (PageForge, raw Playwright, html2pdf.js, WeasyPrint)",
+  "description": "dom2pdf — deterministic HTML-to-PDF benchmark harness (dom2pdf, raw Playwright, html2pdf.js, WeasyPrint)",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -25,7 +25,7 @@
   },
   "dependencies": {
     "html2pdf.js": "0.14.0",
-    "pageforge-pdf": "workspace:*",
+    "dom2pdf-js": "workspace:*",
     "playwright": "1.64.0"
   }
 }

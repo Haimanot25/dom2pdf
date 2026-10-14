@@ -1,10 +1,10 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { isPageForgeError, PAPER_FORMATS, type ConvertOptions, type PaperFormat, type QualityReport } from "pageforge-pdf";
+import { isDom2PdfError, PAPER_FORMATS, type ConvertOptions, type PaperFormat, type QualityReport } from "dom2pdf-js";
 import { renderUi } from "./ui.js";
 
 /**
  * The slice of `Converter` this app needs. Structural, so unit tests inject a
- * fake and production passes the real `pageforge-pdf` converter unchanged.
+ * fake and production passes the real `dom2pdf-js` converter unchanged.
  */
 export interface WebConverter {
   convert(options: ConvertOptions): Promise<{ bytes: Uint8Array; report: QualityReport }>;
@@ -42,7 +42,7 @@ function sendError(res: ServerResponse, status: number, code: string, message: s
  * (and any script against `/api/convert`) can react programmatically.
  */
 export function statusForError(error: unknown): number {
-  if (!isPageForgeError(error)) return 500;
+  if (!isDom2PdfError(error)) return 500;
   switch (error.code) {
     case "READINESS_TIMEOUT":
     case "RENDER_TIMEOUT":
@@ -224,7 +224,7 @@ export function createWebServer(options: WebServerOptions): Server {
           finished = true;
           if (controller.signal.aborted) return;
           const status = statusForError(error);
-          if (isPageForgeError(error)) {
+          if (isDom2PdfError(error)) {
             sendJson(res, status, { error: error.toJSON() });
           } else {
             sendError(res, status, "INTERNAL", error instanceof Error ? error.message : String(error));

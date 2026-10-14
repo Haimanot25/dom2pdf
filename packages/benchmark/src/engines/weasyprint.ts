@@ -48,7 +48,7 @@ export function createWeasyPrintEngine(runner: CommandRunner = defaultRunner): B
   let workDir: string | undefined;
 
   async function ensureWorkDir(): Promise<string> {
-    workDir ??= await mkdtemp(path.join(tmpdir(), "pageforge-bench-"));
+    workDir ??= await mkdtemp(path.join(tmpdir(), "dom2pdf-bench-"));
     return workDir;
   }
 

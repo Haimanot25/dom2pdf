@@ -2,7 +2,7 @@ import { lookup } from "node:dns/promises";
 import { realpath } from "node:fs/promises";
 import { isIP } from "node:net";
 import path from "node:path";
-import { PageForgeError } from "../errors/index.js";
+import { Dom2PdfError } from "../errors/index.js";
 import { sanitizeUrl } from "../utils/url.js";
 
 /**
@@ -39,7 +39,7 @@ export const systemDnsLookup: DnsLookup = async (hostname) => {
   try {
     return await lookup(hostname, { all: true });
   } catch (cause) {
-    throw new PageForgeError({
+    throw new Dom2PdfError({
       code: "NAVIGATION_FAILED",
       message: `DNS lookup failed for host "${hostname}"`,
       details: { hostname },
@@ -134,7 +134,7 @@ export function classifyIp(ip: string): IpClassification {
   const family = isIP(ip);
   if (family === 4) return classifyIpv4(ip);
   if (family === 6) return classifyIpv6(ip);
-  throw new PageForgeError({
+  throw new Dom2PdfError({
     code: "INVALID_INPUT",
     message: `"${ip}" is not a valid IP address`,
     details: { ip },
@@ -146,12 +146,12 @@ function blocked(
   classification: IpClassification,
   policy: DestinationPolicy,
   url: URL,
-): PageForgeError {
+): Dom2PdfError {
   const why =
     classification === "loopback"
       ? "loopback destinations require security.allowLoopback"
       : "private/link-local/reserved destinations require security.allowPrivateNetwork";
-  return new PageForgeError({
+  return new Dom2PdfError({
     code: "BLOCKED_URL",
     message: `Blocked navigation to ${ip} (${classification}): ${why}`,
     details: {
@@ -196,7 +196,7 @@ export async function assertUrlDestinationAllowed(
   try {
     url = new URL(rawUrl);
   } catch (cause) {
-    throw new PageForgeError({
+    throw new Dom2PdfError({
       code: "INVALID_INPUT",
       message: `Invalid URL: ${rawUrl.length > 200 ? `${rawUrl.slice(0, 200)}…` : rawUrl}`,
       cause,
@@ -204,7 +204,7 @@ export async function assertUrlDestinationAllowed(
   }
 
   if (!ALLOWED_PROTOCOLS.has(url.protocol)) {
-    throw new PageForgeError({
+    throw new Dom2PdfError({
       code: "BLOCKED_URL",
       message: `Blocked navigation to protocol "${url.protocol}" — only http: and https: are allowed`,
       details: { protocol: url.protocol, url: sanitizeUrl(url) },
@@ -213,7 +213,7 @@ export async function assertUrlDestinationAllowed(
 
   const hostname = url.hostname.replace(/^\[/, "").replace(/\]$/, "");
   if (hostname.length === 0) {
-    throw new PageForgeError({ code: "INVALID_INPUT", message: "URL has no host", details: { url: sanitizeUrl(url) } });
+    throw new Dom2PdfError({ code: "INVALID_INPUT", message: "URL has no host", details: { url: sanitizeUrl(url) } });
   }
 
   if (isIP(hostname) !== 0) {
@@ -223,7 +223,7 @@ export async function assertUrlDestinationAllowed(
 
   const addresses = await dnsLookup(hostname);
   if (addresses.length === 0) {
-    throw new PageForgeError({
+    throw new Dom2PdfError({
       code: "NAVIGATION_FAILED",
       message: `DNS lookup returned no addresses for host "${hostname}"`,
       details: { hostname },
@@ -246,7 +246,7 @@ export async function assertUrlDestinationAllowed(
  */
 export async function assertLocalFileAllowed(rawPath: string, policy: LocalFilePolicy): Promise<string> {
   if (!policy.allowLocalFiles || policy.allowedLocalDirectories.length === 0) {
-    throw new PageForgeError({
+    throw new Dom2PdfError({
       code: "LOCAL_FILE_NOT_ALLOWED",
       message:
         "Local file input is disabled — set security.allowLocalFiles: true and list security.allowedLocalDirectories",
@@ -257,7 +257,7 @@ export async function assertLocalFileAllowed(rawPath: string, policy: LocalFileP
   const resolved = path.resolve(rawPath);
   const extension = path.extname(resolved).toLowerCase();
   if (extension !== ".html" && extension !== ".htm") {
-    throw new PageForgeError({
+    throw new Dom2PdfError({
       code: "INVALID_INPUT",
       message: `Local input must be an .html or .htm file; received extension "${extension || "(none)"}"`,
       details: { path: resolved },
@@ -268,7 +268,7 @@ export async function assertLocalFileAllowed(rawPath: string, policy: LocalFileP
   try {
     canonical = await realpath(resolved);
   } catch (cause) {
-    throw new PageForgeError({
+    throw new Dom2PdfError({
       code: "INVALID_INPUT",
       message: `Local file not found or unreadable: ${resolved}`,
       details: { path: resolved },
@@ -291,7 +291,7 @@ export async function assertLocalFileAllowed(rawPath: string, policy: LocalFileP
   });
 
   if (!contained) {
-    throw new PageForgeError({
+    throw new Dom2PdfError({
       code: "LOCAL_FILE_NOT_ALLOWED",
       message: `Local file is outside security.allowedLocalDirectories: ${canonical}`,
       details: { path: canonical, allowedDirectories: canonicalRealDirs },

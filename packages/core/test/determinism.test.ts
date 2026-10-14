@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULTS, normalizeOptions, parseConvertOptions } from "../src/config/normalize.js";
-import { PageForgeError } from "../src/errors/index.js";
+import { Dom2PdfError } from "../src/errors/index.js";
 import { digestFromPages, normalizePdfDates } from "../src/pdf/determinism.js";
 
 const htmlInput = { type: "html" as const, html: "<p>x</p>" };
@@ -123,7 +123,7 @@ describe("deterministic convert option", () => {
       } catch (error) {
         caught = error;
       }
-      expect(caught).toBeInstanceOf(PageForgeError);
+      expect(caught).toBeInstanceOf(Dom2PdfError);
     }
   });
 });

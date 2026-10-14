@@ -9,7 +9,7 @@ import {
   isCancellation,
   readAttachedDiagnostics,
 } from "../diagnostics/collect.js";
-import { isPageForgeError, PageForgeError } from "../errors/index.js";
+import { isDom2PdfError, Dom2PdfError } from "../errors/index.js";
 import { applyInput } from "../inputs/apply.js";
 import { prepareInput } from "../inputs/resolve.js";
 import { analyzeScreenLayout, layoutWarnings } from "../layout-analysis/analyze.js";
@@ -141,7 +141,7 @@ class ConverterImpl implements Converter {
 
   async convert(options: ConvertOptions): Promise<ConvertResult> {
     if (this.closed) {
-      throw new PageForgeError({ code: "CONVERTER_CLOSED", message: "Converter has been closed" });
+      throw new Dom2PdfError({ code: "CONVERTER_CLOSED", message: "Converter has been closed" });
     }
 
     const normalized = normalizeOptions(options);
@@ -151,7 +151,7 @@ class ConverterImpl implements Converter {
     // scheduling and never accumulate unbounded pending jobs.
     const max = this.maxConcurrentConversions;
     if (max !== undefined && this.activeConversions >= max) {
-      throw new PageForgeError({
+      throw new Dom2PdfError({
         code: "RESOURCE_LIMIT_EXCEEDED",
         message: `Concurrent conversion limit reached: this converter allows ${max} conversion(s) at a time`,
         details: { limit: "maxConcurrentConversions", max, active: this.activeConversions },
@@ -211,7 +211,7 @@ class ConverterImpl implements Converter {
                 // unreachable, as the navigation deadline running out. The
                 // typed verdict outranks either.
                 if (
-                  isPageForgeError(cause) &&
+                  isDom2PdfError(cause) &&
                   (cause.code === "NAVIGATION_FAILED" || cause.code === "READINESS_TIMEOUT")
                 ) {
                   await guard.drain();
@@ -274,7 +274,7 @@ class ConverterImpl implements Converter {
               if (blockedAfterRender !== undefined) throw blockedAfterRender;
               const maxOutputBytes = normalized.limits.maxOutputBytes;
               if (maxOutputBytes !== undefined && renderedBytes.byteLength > maxOutputBytes) {
-                throw new PageForgeError({
+                throw new Dom2PdfError({
                   code: "RESOURCE_LIMIT_EXCEEDED",
                   message: `Generated PDF is ${renderedBytes.byteLength} bytes, exceeding limits.maxOutputBytes (${maxOutputBytes})`,
                   details: { limit: "maxOutputBytes", maxOutputBytes, byteLength: renderedBytes.byteLength },
@@ -318,7 +318,7 @@ class ConverterImpl implements Converter {
               const inspection = await raceWithAbort(inspectPdf(bytes, { extractText: true }), signal);
               const textStats = inspection.text;
               if (textStats === null) {
-                throw new PageForgeError({
+                throw new Dom2PdfError({
                   code: "PDF_VALIDATION_FAILED",
                   message: "Internal error: text extraction was requested but produced no stats",
                   details: { byteLength: inspection.byteLength },
@@ -449,11 +449,11 @@ class ConverterImpl implements Converter {
         signal,
       );
     } catch (cause) {
-      if (cause instanceof PageForgeError) throw cause;
+      if (cause instanceof Dom2PdfError) throw cause;
       // Plain failures are wrapped as BROWSER_FAILURE; carry any forensics
       // that were attached to the original cause onto the typed error.
       const diagnostics = readAttachedDiagnostics(cause);
-      throw new PageForgeError({
+      throw new Dom2PdfError({
         code: "BROWSER_FAILURE",
         message: `Unexpected conversion failure${cause instanceof Error ? `: ${cause.message}` : ""}`,
         cause,
@@ -480,7 +480,7 @@ export async function createConverter(options: CreateConverterOptions = {}): Pro
     maxConcurrentConversions !== undefined &&
     (!Number.isInteger(maxConcurrentConversions) || maxConcurrentConversions < 1)
   ) {
-    throw new PageForgeError({
+    throw new Dom2PdfError({
       code: "INVALID_INPUT",
       message: `limits.maxConcurrentConversions must be an integer ≥ 1; received ${String(maxConcurrentConversions)}`,
     });

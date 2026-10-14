@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import type { NormalizedReadinessOptions } from "../config/normalize.js";
-import { PageForgeError } from "../errors/index.js";
+import { Dom2PdfError } from "../errors/index.js";
 import type { NetworkActivity } from "./tracking.js";
 import type { Deadline } from "../utils/deadline.js";
 
@@ -68,8 +68,8 @@ export interface ReadinessResult {
   stalledUrls: string[];
 }
 
-function readinessTimeout(stage: string, deadline: Deadline): PageForgeError {
-  return new PageForgeError({
+function readinessTimeout(stage: string, deadline: Deadline): Dom2PdfError {
+  return new Dom2PdfError({
     code: "READINESS_TIMEOUT",
     message: `Readiness deadline elapsed during the "${stage}" stage — the page never settled (set readiness.networkIdleMs: 0 or raise readiness.timeoutMs for long-polling pages)`,
     details: { stage, expiresAt: deadline.expiresAt },
@@ -338,14 +338,14 @@ export async function waitForReadiness(
       await page.waitForSelector(options.selector, { state: "visible", timeout: deadline.remainingMs() });
     } catch (cause) {
       if (isTimeoutError(cause)) {
-        throw new PageForgeError({
+        throw new Dom2PdfError({
           code: "READINESS_TIMEOUT",
           message: `Readiness deadline elapsed waiting for selector "${options.selector}" to become visible`,
           details: { stage: "selector", selector: options.selector, expiresAt: deadline.expiresAt },
           cause,
         });
       }
-      throw new PageForgeError({
+      throw new Dom2PdfError({
         code: "INVALID_INPUT",
         message: `readiness.selector is not a usable selector: ${cause instanceof Error ? cause.message : String(cause)}`,
         details: { stage: "selector", selector: options.selector },

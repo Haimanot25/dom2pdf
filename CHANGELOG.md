@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to PageForge are documented here. Versions follow
+All notable changes to dom2pdf are documented here. Versions follow
 [semver](https://semver.org/); until `1.0.0` the API may move in minor
 versions, and **error codes may be added in minor releases** (treat unknown
 codes as generic failures).
@@ -10,7 +10,7 @@ codes as generic failures).
 First public alpha — the six-phase foundation, in order:
 
 ### Phase 1 — Foundation
-- pnpm workspace: `pageforge-pdf` (core), `pageforge-cli`, `pageforge-benchmark`.
+- pnpm workspace: `dom2pdf-js` (core), `dom2pdf-cli`, `dom2pdf-benchmark`.
 - Strict TypeScript everywhere, ESLint flat config, pinned Playwright 1.64.0.
 - URL/HTML/file → PDF through Chromium's native `page.pdf()`; typed errors
   with stable codes; `Deadline`; isolated browser manager.
@@ -27,7 +27,7 @@ First public alpha — the six-phase foundation, in order:
   structured quality report; `QUALITY_POLICY_FAILED` policies.
 
 ### Phase 4 — CLI & documentation
-- `pageforge convert|inspect` with `--json`/`--quiet`, stable exit codes
+- `dom2pdf convert|inspect` with `--json`/`--quiet`, stable exit codes
   (0/2/3/4/130), SIGINT cancellation; getting-started, modes, API, CLI, and
   security docs.
 
@@ -39,13 +39,13 @@ First public alpha — the six-phase foundation, in order:
   credential redaction on error paths.
 
 ### Phase 6 — Benchmark, CI, container
-- `pageforge benchmark`: deterministic scenarios; PageForge vs raw-Playwright
+- `dom2pdf benchmark`: deterministic scenarios; dom2pdf vs raw-Playwright
   baseline vs html2pdf.js vs WeasyPrint (skip-with-hint when absent, never
   fabricated); JSON + human reports.
 - GitHub Actions CI (lint, typecheck, unit on Node 22/24; build + Playwright
   e2e on Chromium) and a production Docker image with Chromium's sandbox on.
 
-### Local web UI (`pageforge-web`, development tool)
+### Local web UI (`dom2pdf-web`, development tool)
 - `pnpm web`: localhost-only server with a browser form — target URL in, PDF
   out, quality-report summary and typed security errors shown inline.
   Loopback/private targets need explicit `--allow-loopback` /
@@ -53,7 +53,7 @@ First public alpha — the six-phase foundation, in order:
 - "Tolerant readiness" option (`tolerant: true` in the API): skips waiting on
   images/network idle for sites that keep requests open forever (streaming
   assets, long polling); fonts are still awaited. Default stays strict.
-- `PAPER_FORMATS` and `PaperFormat` are now exported from `pageforge-pdf`.
+- `PAPER_FORMATS` and `PaperFormat` are now exported from `dom2pdf-js`.
 
 ### Browser presentation
 - New `browser.userAgent` convert option. Default: a standard `Chrome` UA for

@@ -1,20 +1,20 @@
-import { createConverter, createSilentLogger, type Converter } from "pageforge-pdf";
+import { createConverter, createSilentLogger, type Converter } from "dom2pdf-js";
 import type { BenchmarkScenario } from "../scenarios.js";
 import type { BenchmarkEngine, EngineAvailability, EngineTimedRun } from "./types.js";
 
 /**
- * PageForge itself: the full production pipeline — isolated context, request
+ * dom2pdf itself: the full production pipeline — isolated context, request
  * policy, readiness phase, quality report — measured end to end. The browser
  * launches on the first timed run and is reused for the rest of the suite,
  * matching how the library is used in practice.
  */
-export function createPageForgeEngine(): BenchmarkEngine {
+export function createDom2PdfEngine(): BenchmarkEngine {
   let converter: Converter | undefined;
   let browserVersion: string | undefined;
 
   return {
-    name: "pageforge",
-    description: "PageForge full pipeline (context isolation, request policy, readiness, quality report)",
+    name: "dom2pdf",
+    description: "dom2pdf full pipeline (context isolation, request policy, readiness, quality report)",
 
     async probe(): Promise<EngineAvailability> {
       return { available: true };
@@ -29,7 +29,7 @@ export function createPageForgeEngine(): BenchmarkEngine {
       const startedAt = performance.now();
       const result = await converter.convert({
         input: { type: "html", html },
-        ...(scenario.pageforgeOptions ?? {}),
+        ...(scenario.dom2pdfOptions ?? {}),
       });
       const ms = performance.now() - startedAt;
       browserVersion ??= result.report.browser.version;

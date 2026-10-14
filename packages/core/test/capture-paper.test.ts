@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { computePaperFit, lengthToPx } from "../src/capture/paper.js";
 import type { NormalizedPdfOptions, NormalizedViewport } from "../src/config/normalize.js";
-import { PageForgeError } from "../src/errors/index.js";
+import { Dom2PdfError } from "../src/errors/index.js";
 
 const MM_TO_PX = 96 / 25.4;
 
@@ -45,8 +45,8 @@ describe("lengthToPx", () => {
         lengthToPx(bad);
         throw new Error(`expected lengthToPx("${bad}") to throw`);
       } catch (error) {
-        expect(error).toBeInstanceOf(PageForgeError);
-        expect((error as PageForgeError).code).toBe("INVALID_INPUT");
+        expect(error).toBeInstanceOf(Dom2PdfError);
+        expect((error as Dom2PdfError).code).toBe("INVALID_INPUT");
       }
     }
   });

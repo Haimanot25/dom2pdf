@@ -6,7 +6,7 @@ import {
   runBenchmark,
   SCENARIO_NAMES,
   type BenchmarkReport,
-} from "pageforge-benchmark";
+} from "dom2pdf-benchmark";
 import { parseIntFlag, UsageError } from "./shared.js";
 
 interface BenchmarkFlags {
@@ -19,14 +19,14 @@ interface BenchmarkFlags {
 }
 
 /**
- * Engines whose failure fails the whole benchmark (exit 3). PageForge and its
+ * Engines whose failure fails the whole benchmark (exit 3). dom2pdf and its
  * raw-Playwright baseline are the pair the suite exists to compare — if either
  * cannot run, the numbers are meaningless. Comparators (html2pdf.js,
  * WeasyPrint) are informational: their failures are reported in the JSON
  * (`status: "failed"`) but do not fail the command, and missing tools are
  * `skipped` with a reason — never estimated.
  */
-const REQUIRED_ENGINES: ReadonlySet<string> = new Set(["pageforge", "playwright-raw"]);
+const REQUIRED_ENGINES: ReadonlySet<string> = new Set(["dom2pdf", "playwright-raw"]);
 
 /** Parses and validates a comma-separated `--scenarios`/`--engines` value. */
 export function parseNameList(

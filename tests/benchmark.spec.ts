@@ -5,7 +5,7 @@ import { expect, test } from "@playwright/test";
 import { runCli } from "./helpers/cli.js";
 
 /**
- * Phase 6: `pageforge benchmark` end to end.
+ * Phase 6: `dom2pdf benchmark` end to end.
  *
  * Uses one scenario and zero warm-ups so the suite stays fast; the harness
  * itself (stats, skip/fail semantics, determinism) is unit-tested in
@@ -43,14 +43,14 @@ function engineResult(report: ReportJson, engineName: string): (typeof report.sc
 let workDir: string;
 
 test.beforeAll(async () => {
-  workDir = await mkdtemp(path.join(tmpdir(), "pageforge-bench-"));
+  workDir = await mkdtemp(path.join(tmpdir(), "dom2pdf-bench-"));
 });
 
 test.afterAll(async () => {
   await rm(workDir, { recursive: true, force: true });
 });
 
-test.describe("pageforge benchmark", () => {
+test.describe("dom2pdf benchmark", () => {
   test("--json emits a machine-readable report with honest per-engine statuses", async () => {
     test.setTimeout(120_000); // slow CI runners launch several browsers here
     const result = await runCli(
@@ -60,14 +60,14 @@ test.describe("pageforge benchmark", () => {
     expect(result.code).toBe(0);
 
     const report = JSON.parse(result.stdout) as ReportJson;
-    expect(report.meta.tool).toBe("pageforge-benchmark");
+    expect(report.meta.tool).toBe("dom2pdf-benchmark");
     expect(report.meta.iterations).toBe(1);
     expect(report.meta.warmup).toBe(0);
     expect(report.scenarios).toHaveLength(1);
     expect(report.scenarios[0]?.scenario).toBe("simple");
 
-    // PageForge and its raw baseline must both produce measured output.
-    for (const name of ["pageforge", "playwright-raw", "html2pdf.js"]) {
+    // dom2pdf and its raw baseline must both produce measured output.
+    for (const name of ["dom2pdf", "playwright-raw", "html2pdf.js"]) {
       const engine = engineResult(report, name);
       expect(engine.status).toBe("ok");
       expect(engine.runs).toHaveLength(1);
@@ -108,12 +108,12 @@ test.describe("pageforge benchmark", () => {
       { timeoutMs: 100_000 },
     );
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain("PageForge benchmark");
+    expect(result.stdout).toContain("dom2pdf benchmark");
     expect(result.stdout).toContain("median");
     expect(result.stdout).toContain(`JSON report written to ${outputPath}`);
 
     const written = JSON.parse(await readFile(outputPath, "utf8")) as ReportJson;
-    expect(written.meta.tool).toBe("pageforge-benchmark");
+    expect(written.meta.tool).toBe("dom2pdf-benchmark");
     expect(written.scenarios[0]?.scenario).toBe("simple");
   });
 

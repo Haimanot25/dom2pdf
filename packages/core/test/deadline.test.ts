@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PageForgeError } from "../src/errors/index.js";
+import { Dom2PdfError } from "../src/errors/index.js";
 import { Deadline } from "../src/utils/deadline.js";
 
 describe("Deadline", () => {
@@ -20,18 +20,18 @@ describe("Deadline", () => {
     const deadline = Deadline.at(Date.now() - 1);
     expect(deadline.expired).toBe(true);
     expect(deadline.remainingMs()).toBe(0);
-    expect(() => deadline.throwIfExpired("READINESS_TIMEOUT", "gone")).toThrowError(PageForgeError);
+    expect(() => deadline.throwIfExpired("READINESS_TIMEOUT", "gone")).toThrowError(Dom2PdfError);
     try {
       deadline.throwIfExpired("RENDER_TIMEOUT", "gone too");
     } catch (error) {
-      expect((error as PageForgeError).code).toBe("RENDER_TIMEOUT");
+      expect((error as Dom2PdfError).code).toBe("RENDER_TIMEOUT");
     }
   });
 
   it("rejects invalid durations", () => {
-    expect(() => Deadline.in(-1)).toThrowError(PageForgeError);
-    expect(() => Deadline.in(Number.NaN)).toThrowError(PageForgeError);
-    expect(() => Deadline.at(Number.POSITIVE_INFINITY)).toThrowError(PageForgeError);
+    expect(() => Deadline.in(-1)).toThrowError(Dom2PdfError);
+    expect(() => Deadline.in(Number.NaN)).toThrowError(Dom2PdfError);
+    expect(() => Deadline.at(Number.POSITIVE_INFINITY)).toThrowError(Dom2PdfError);
   });
 
   it("does not throw when not expired", () => {

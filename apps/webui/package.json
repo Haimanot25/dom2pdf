@@ -1,12 +1,12 @@
 {
-  "name": "pageforge-web",
+  "name": "dom2pdf-web",
   "version": "0.1.0-alpha.0",
   "private": true,
-  "description": "PageForge — local web UI: convert a target URL to PDF from your browser",
+  "description": "dom2pdf — local web UI: convert a target URL to PDF from your browser",
   "license": "MIT",
   "type": "module",
   "bin": {
-    "pageforge-web": "./dist/index.js"
+    "dom2pdf-web": "./dist/index.js"
   },
   "files": [
     "dist"
@@ -20,6 +20,6 @@
   },
   "dependencies": {
     "commander": "15.0.0",
-    "pageforge-pdf": "workspace:*"
+    "dom2pdf-js": "workspace:*"
   }
 }

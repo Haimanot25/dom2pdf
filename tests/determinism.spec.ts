@@ -77,7 +77,7 @@ test.describe("deterministic output", () => {
   });
 
   test("CLI --deterministic writes byte-identical files and prints the digest", async () => {
-    const workDir = await mkdtemp(path.join(tmpdir(), "pageforge-det-"));
+    const workDir = await mkdtemp(path.join(tmpdir(), "dom2pdf-det-"));
     try {
       const outA = path.join(workDir, "run-a.pdf");
       const outB = path.join(workDir, "run-b.pdf");

@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
 import { Command, CommanderError } from "commander";
-import { isPageForgeError } from "pageforge-pdf";
+import { isDom2PdfError } from "dom2pdf-js";
 import { registerBenchmarkCommand } from "./benchmark.js";
 import { registerConvertCommand } from "./convert.js";
 import { registerInspectCommand } from "./inspect.js";
 import { errorToJson, errorToText, EXIT_CODES, exitCodeFor } from "./shared.js";
 
 /**
- * PageForge CLI entry point.
+ * dom2pdf CLI entry point.
  *
  * Exit codes are a stable contract:
  *
@@ -20,14 +20,14 @@ import { errorToJson, errorToText, EXIT_CODES, exitCodeFor } from "./shared.js";
  *
  * `--json` mode reports errors as JSON on stderr; success reports are JSON on
  * stdout. The CLI contains no conversion or benchmark logic — `convert` and
- * `inspect` go through the `pageforge-pdf` library, `benchmark` through
- * `pageforge-benchmark`.
+ * `inspect` go through the `dom2pdf-js` library, `benchmark` through
+ * `dom2pdf-benchmark`.
  */
 export async function main(argv: string[]): Promise<number> {
   const program = new Command();
   program
-    .name("pageforge")
-    .description("PageForge — HTML-to-PDF conversion engine")
+    .name("dom2pdf")
+    .description("dom2pdf — HTML-to-PDF conversion engine")
     .version(readVersion())
     .showHelpAfterError()
     .exitOverride();
@@ -59,7 +59,7 @@ export async function main(argv: string[]): Promise<number> {
       // Quality failures already name every violation in their message, so
       // the full attached report is only spelled out in --json mode.
       if (
-        isPageForgeError(error) &&
+        isDom2PdfError(error) &&
         error.code !== "QUALITY_POLICY_FAILED" &&
         error.details !== undefined
       ) {

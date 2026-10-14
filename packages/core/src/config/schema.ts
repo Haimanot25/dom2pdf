@@ -51,7 +51,7 @@ export const pdfOptionsSchema = z
     landscape: z.boolean().optional(),
     /** Render scale, 0.1–2 (Chromium's supported range). */
     scale: z.number().min(0.1).max(2).optional(),
-    /** PageForge defaults to `true` so backgrounds/colors survive. Chromium's own default is `false`. */
+    /** dom2pdf defaults to `true` so backgrounds/colors survive. Chromium's own default is `false`. */
     printBackground: z.boolean().optional(),
     /** Give an author's CSS `@page` size priority over format/width/height. */
     preferCSSPageSize: z.boolean().optional(),

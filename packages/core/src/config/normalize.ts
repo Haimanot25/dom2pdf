@@ -1,4 +1,4 @@
-import { PageForgeError } from "../errors/index.js";
+import { Dom2PdfError } from "../errors/index.js";
 import {
   convertOptionsSchema,
   type ConvertOptions,
@@ -15,7 +15,7 @@ export const DEFAULTS = {
   renderTimeoutMs: 30_000,
   pdfFormat: "A4" as PaperFormat,
   pdfScale: 1,
-  /** PageForge preserves colors/backgrounds by default (Chromium defaults to off). */
+  /** dom2pdf preserves colors/backgrounds by default (Chromium defaults to off). */
   pdfPrintBackground: true,
   /** Wait for fonts/images plus a short network quiet window before rendering. */
   readinessFonts: true,
@@ -163,7 +163,7 @@ export function parseConvertOptions(raw: unknown): ConvertOptions {
     // Reserved output policies are valid schema values but not yet implemented;
     // reject them explicitly rather than silently downgrading behavior.
     if (parsed.outputPolicy !== undefined && parsed.outputPolicy.type !== "paper-fit") {
-      throw new PageForgeError({
+      throw new Dom2PdfError({
         code: "UNSUPPORTED_OPTION",
         message: `outputPolicy "${parsed.outputPolicy.type}" is reserved for a later phase; only "paper-fit" is implemented`,
         details: { outputPolicy: parsed.outputPolicy },
@@ -179,14 +179,14 @@ export function parseConvertOptions(raw: unknown): ConvertOptions {
   const unknownKeys = issues.find((issue) => issue.code === "unrecognized_keys");
   if (unknownKeys !== undefined) {
     const keys = (unknownKeys.keys ?? []).join(", ");
-    throw new PageForgeError({
+    throw new Dom2PdfError({
       code: "UNSUPPORTED_OPTION",
       message: `Unknown option${(unknownKeys.path ?? []).length > 0 ? ` at "${(unknownKeys.path ?? []).join(".")}"` : ""}: ${keys}`,
       details,
     });
   }
 
-  throw new PageForgeError({
+  throw new Dom2PdfError({
     code: "INVALID_INPUT",
     message: `Invalid conversion options: ${first?.message ?? "validation failed"} (at ${firstPath})`,
     details,

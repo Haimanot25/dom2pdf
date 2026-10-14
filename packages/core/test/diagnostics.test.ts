@@ -13,7 +13,7 @@ import {
   REQUESTS_CAP,
   type DiagnosticsBundle,
 } from "../src/diagnostics/collect.js";
-import { PageForgeError } from "../src/errors/index.js";
+import { Dom2PdfError } from "../src/errors/index.js";
 
 /**
  * Minimal structural stand-in for Playwright's Page: event emitter plus the
@@ -228,7 +228,7 @@ describe("gatherDiagnostics", () => {
 
 describe("attachDiagnostics / readAttachedDiagnostics", () => {
   it("merges the bundle into existing error details and round-trips", () => {
-    const error = new PageForgeError({
+    const error = new Dom2PdfError({
       code: "RESOURCE_LIMIT_EXCEEDED",
       message: "cap hit",
       details: { limit: "maxRequests" },
@@ -261,8 +261,8 @@ describe("attachDiagnostics / readAttachedDiagnostics", () => {
 
 describe("isCancellation", () => {
   it("recognizes only CANCELLED typed errors", () => {
-    expect(isCancellation(new PageForgeError({ code: "CANCELLED", message: "aborted" }))).toBe(true);
-    expect(isCancellation(new PageForgeError({ code: "NAVIGATION_FAILED", message: "nope" }))).toBe(false);
+    expect(isCancellation(new Dom2PdfError({ code: "CANCELLED", message: "aborted" }))).toBe(true);
+    expect(isCancellation(new Dom2PdfError({ code: "NAVIGATION_FAILED", message: "nope" }))).toBe(false);
     expect(isCancellation(new Error("plain"))).toBe(false);
   });
 });

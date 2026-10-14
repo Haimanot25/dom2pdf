@@ -1,8 +1,8 @@
-# PageForge production image.
+# dom2pdf production image.
 #
 # Base image is pinned to the same Playwright release as the dependency
 # (playwright 1.64.0 → v1.64.0) so the bundled Chromium build matches exactly
-# what the library expects. Chromium's sandbox stays enabled: PageForge
+# what the library expects. Chromium's sandbox stays enabled: dom2pdf
 # launches with `chromiumSandbox: true`, and the runtime user below is
 # non-root so the sandbox actually works.
 
@@ -39,11 +39,11 @@ COPY --from=build /app/packages/core/dist packages/core/dist
 COPY --from=build /app/packages/benchmark/dist packages/benchmark/dist
 COPY --from=build /app/apps/cli/dist apps/cli/dist
 
-# Non-root: required for Chromium's sandbox (PageForge never disables it) and
+# Non-root: required for Chromium's sandbox (dom2pdf never disables it) and
 # the right default for a service that renders untrusted documents.
-RUN useradd --create-home --uid 10001 pageforge \
-  && chown -R pageforge:pageforge /app
-USER pageforge
+RUN useradd --create-home --uid 10001 dom2pdf \
+  && chown -R dom2pdf:dom2pdf /app
+USER dom2pdf
 
 ENTRYPOINT ["node", "apps/cli/dist/index.js"]
 CMD ["--help"]

@@ -1,4 +1,4 @@
-import type { ConvertOptions } from "pageforge-pdf";
+import type { ConvertOptions } from "dom2pdf-js";
 
 /**
  * Deterministic benchmark scenarios.
@@ -16,11 +16,11 @@ export interface BenchmarkScenario {
   /** Deterministic HTML; identical bytes on every call. */
   html(): string;
   /**
-   * Options PageForge applies for this scenario. Comparators always use their
+   * Options dom2pdf applies for this scenario. Comparators always use their
    * own defaults — engines render with their real-world settings, and the
    * report measures *time*, not output equivalence.
    */
-  pageforgeOptions?: Omit<Partial<ConvertOptions>, "input" | "signal">;
+  dom2pdfOptions?: Omit<Partial<ConvertOptions>, "input" | "signal">;
 }
 
 const DOCUMENT_OPEN = "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n";
@@ -99,7 +99,7 @@ function printCssHtml(): string {
     DOCUMENT_OPEN +
     '<title>Print stylesheet document</title>\n' +
     "<style>\n" +
-    "@page{size:A4;margin:18mm 16mm;@top-center{content:'PageForge print-CSS fixture'}}\n" +
+    "@page{size:A4;margin:18mm 16mm;@top-center{content:'dom2pdf print-CSS fixture'}}\n" +
     "body{font-family:'Helvetica Neue',Arial,sans-serif;font-size:10.5pt;line-height:1.45}\n" +
     "section{page-break-inside:auto}\n" +
     "h2{page-break-after:avoid;color:#14304a}\n" +
@@ -135,7 +135,7 @@ function screenDashboardHtml(): string {
     ".value{font-size:32px;font-weight:700;color:#5ce1b2;margin:4px 0 8px}\n" +
     ".banner{position:sticky;top:0;background:#1d3a57;padding:12px 16px;border-radius:8px;margin-bottom:16px}\n" +
     "</style>\n</head>\n<body>\n" +
-    '<div class="layout">\n<aside><h2>PageForge</h2>' +
+    '<div class="layout">\n<aside><h2>dom2pdf</h2>' +
     "<a href=\"#\">Overview</a><a href=\"#\">Traffic</a><a href=\"#\">Latency</a><a href=\"#\">Errors</a></aside>\n" +
     "<main><div class=\"banner\">Live dashboard — screen mode measures the paper-fit pipeline.</div>\n" +
     "<header><h1>System overview</h1><span>last 24 hours</span></header>\n" +
@@ -166,7 +166,7 @@ export const SCENARIOS: readonly BenchmarkScenario[] = [
     name: "screen-dashboard",
     description: "CSS-grid dashboard rendered in screen (paper-fit) mode",
     html: screenDashboardHtml,
-    pageforgeOptions: { mode: "screen" },
+    dom2pdfOptions: { mode: "screen" },
   },
 ];
 

@@ -196,10 +196,10 @@ importers:
       commander:
         specifier: 15.0.0
         version: 15.0.0
-      pageforge-benchmark:
+      dom2pdf-benchmark:
         specifier: workspace:*
         version: link:../../packages/benchmark
-      pageforge-pdf:
+      dom2pdf-js:
         specifier: workspace:*
         version: link:../../packages/core
 
@@ -208,7 +208,7 @@ importers:
       commander:
         specifier: 15.0.0
         version: 15.0.0
-      pageforge-pdf:
+      dom2pdf-js:
         specifier: workspace:*
         version: link:../../packages/core
 
@@ -217,7 +217,7 @@ importers:
       html2pdf.js:
         specifier: 0.14.0
         version: 0.14.0
-      pageforge-pdf:
+      dom2pdf-js:
         specifier: workspace:*
         version: link:../core
       playwright:

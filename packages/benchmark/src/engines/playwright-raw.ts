@@ -4,9 +4,9 @@ import type { BenchmarkEngine, EngineAvailability, EngineTimedRun } from "./type
 
 /**
  * Raw Playwright: `setContent` + `page.pdf()` on a fresh page per run, same
- * pinned Chromium as PageForge, print backgrounds on (PageForge's default).
+ * pinned Chromium as dom2pdf, print backgrounds on (dom2pdf's default).
  *
- * This is the honest baseline: it isolates what PageForge's pipeline
+ * This is the honest baseline: it isolates what dom2pdf's pipeline
  * (readiness, policy, report) adds on top of Chromium's native PDF path. It
  * deliberately applies no readiness logic — what you pay for the extras is
  * exactly what is being measured.

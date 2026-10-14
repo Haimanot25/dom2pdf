@@ -1,6 +1,6 @@
 # Security
 
-PageForge's stance: **secure by default, explicit opt-in for anything
+dom2pdf's stance: **secure by default, explicit opt-in for anything
 dangerous, honest documentation about what is and is not enforced.** Each
 layer assumes the others can fail.
 
@@ -12,7 +12,7 @@ layer assumes the others can fail.
 
 | Control | Default |
 | --- | --- |
-| Chromium sandbox (`chromiumSandbox`) | **enabled** — Playwright's own default disables it; PageForge explicitly passes `chromiumSandbox: true` |
+| Chromium sandbox (`chromiumSandbox`) | **enabled** — Playwright's own default disables it; dom2pdf explicitly passes `chromiumSandbox: true` |
 | URL input protocol allowlist | `http:`/`https:` only — `ftp:`, `file:`, `javascript:`, `data:` … rejected with `BLOCKED_URL` |
 | Loopback destinations (`localhost`, `127.0.0.0/8`, `::1`) | denied unless `security.allowLoopback: true` |
 | Private/link-local/metadata (RFC1918, `169.254.0.0/16`, `100.64.0.0/10`, …) | denied unless `security.allowPrivateNetwork: true` |
@@ -90,7 +90,7 @@ checked against `limits.maxOutputBytes` before inspection.
   egress rules are the real defense for untrusted workloads.
 - **Unsafe redirect schemes** (`http` → `file:`) are refused by Chromium
   itself with `net::ERR_UNSAFE_REDIRECT` before any response is delivered;
-  PageForge surfaces that as `NAVIGATION_FAILED` with the native error —
+  dom2pdf surfaces that as `NAVIGATION_FAILED` with the native error —
   there is no classified hop to report, and we do not pretend otherwise.
 - **DNS rebinding (TOCTOU):** addresses are validated at check time; the
   browser resolves again when it connects (for redirect hops, natively, see
@@ -99,7 +99,7 @@ checked against `limits.maxOutputBytes` before inspection.
 - **Heuristic warnings are not security controls.** Layout/resource diagnostics
   describe rendering, not trustworthiness.
 
-For anything exposed to untrusted input, run PageForge with network egress
+For anything exposed to untrusted input, run dom2pdf with network egress
 policy at the infrastructure level (allowlist destinations, deny metadata
 endpoints) and in an isolated container — its in-process checks are one layer,
 not the perimeter.

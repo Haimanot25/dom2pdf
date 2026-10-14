@@ -1,11 +1,11 @@
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
-import { PageForgeError } from "../errors/index.js";
+import { Dom2PdfError } from "../errors/index.js";
 import { cancelledError } from "../utils/cancellation.js";
 import type { Logger } from "../utils/logger.js";
 
 export interface BrowserManagerOptions {
   /**
-   * Chromium sandbox state. PageForge defaults to **enabled**: Playwright's
+   * Chromium sandbox state. dom2pdf defaults to **enabled**: Playwright's
    * own default disables the sandbox, so we pass `chromiumSandbox: true`
    * explicitly and only relax it when the caller opts in.
    */
@@ -60,7 +60,7 @@ export class BrowserManager {
 
   private async ensureBrowser(): Promise<Browser> {
     if (this.closed) {
-      throw new PageForgeError({ code: "CONVERTER_CLOSED", message: "Converter has been closed" });
+      throw new Dom2PdfError({ code: "CONVERTER_CLOSED", message: "Converter has been closed" });
     }
     if (this.browser !== null && this.browser.isConnected()) {
       return this.browser;
@@ -85,7 +85,7 @@ export class BrowserManager {
         })
         .catch((cause: unknown) => {
           this.launchTask = null;
-          throw new PageForgeError({
+          throw new Dom2PdfError({
             code: "BROWSER_FAILURE",
             message: `Failed to launch Chromium${cause instanceof Error ? `: ${cause.message}` : ""}`,
             details: { sandbox: this.options.sandbox },
@@ -115,7 +115,7 @@ export class BrowserManager {
         userAgent: options.userAgent ?? chromeUserAgent(browser.version()),
       });
     } catch (cause) {
-      throw new PageForgeError({
+      throw new Dom2PdfError({
         code: "BROWSER_FAILURE",
         message: `Failed to create browser context${cause instanceof Error ? `: ${cause.message}` : ""}`,
         cause,
@@ -127,7 +127,7 @@ export class BrowserManager {
       try {
         page = await context.newPage();
       } catch (cause) {
-        throw new PageForgeError({
+        throw new Dom2PdfError({
           code: "BROWSER_FAILURE",
           message: `Failed to create page${cause instanceof Error ? `: ${cause.message}` : ""}`,
           cause,

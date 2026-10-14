@@ -1,9 +1,9 @@
-import { PageForgeError, type ErrorCode } from "../errors/index.js";
+import { Dom2PdfError, type ErrorCode } from "../errors/index.js";
 
 /**
  * A single point in time after which an operation must fail.
  *
- * PageForge budgets time with deadlines instead of giving every stage its own
+ * dom2pdf budgets time with deadlines instead of giving every stage its own
  * unlimited timeout: callers create one deadline per phase (readiness, render)
  * and clamp each stage to the remaining time.
  */
@@ -18,7 +18,7 @@ export class Deadline {
   /** Deadline occurring `ms` milliseconds from now. */
   static in(ms: number): Deadline {
     if (!Number.isFinite(ms) || ms < 0) {
-      throw new PageForgeError({
+      throw new Dom2PdfError({
         code: "INVALID_INPUT",
         message: `Deadline duration must be a non-negative finite number, received: ${String(ms)}`,
       });
@@ -29,7 +29,7 @@ export class Deadline {
   /** Deadline at an absolute unix timestamp (ms). */
   static at(expiresAt: number): Deadline {
     if (!Number.isFinite(expiresAt)) {
-      throw new PageForgeError({
+      throw new Dom2PdfError({
         code: "INVALID_INPUT",
         message: `Deadline timestamp must be finite, received: ${String(expiresAt)}`,
       });
@@ -55,7 +55,7 @@ export class Deadline {
   /** Throws a typed error with `code` if the deadline has already passed. */
   throwIfExpired(code: ErrorCode, message: string): void {
     if (this.expired) {
-      throw new PageForgeError({ code, message, details: { expiresAt: this.expiresAt } });
+      throw new Dom2PdfError({ code, message, details: { expiresAt: this.expiresAt } });
     }
   }
 }

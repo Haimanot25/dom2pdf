@@ -8,7 +8,7 @@ import {
   readAttachedDiagnostics,
   type DiagnosticsBundle,
   type QualityReport,
-} from "pageforge-pdf";
+} from "dom2pdf-js";
 import {
   buildConvertOptions,
   formatBytes,
@@ -69,7 +69,7 @@ export function registerConvertCommand(program: Command): void {
     .command("convert")
     .description("convert a URL, HTML file, or piped HTML to PDF")
     .argument("[source]", "http(s) URL or local HTML file (omit when using --stdin)")
-    .option("-o, --output <path>", "output PDF path", "pageforge.pdf")
+    .option("-o, --output <path>", "output PDF path", "dom2pdf.pdf")
     .option("--stdin", "read the HTML input from stdin")
     .option("--mode <mode>", "rendering mode: document | screen", undefined)
     .option("--format <format>", "paper format (A4, Letter, …)", undefined)

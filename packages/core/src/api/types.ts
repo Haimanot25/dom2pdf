@@ -16,7 +16,7 @@ export interface ConvertResult {
 export interface Converter {
   /**
    * Converts a URL, HTML string, or explicitly-permitted local file to PDF.
-   * Throws `PageForgeError` with a stable `code` on any failure.
+   * Throws `Dom2PdfError` with a stable `code` on any failure.
    */
   convert(options: ConvertOptions): Promise<ConvertResult>;
   /** Closes the underlying browser. Idempotent. */

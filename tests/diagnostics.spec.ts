@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
   createConverter,
-  PageForgeError,
+  Dom2PdfError,
   type Converter,
   type DiagnosticsBundle,
 } from "../packages/core/dist/index.js";
@@ -20,10 +20,10 @@ test.afterAll(async () => {
   await server?.close();
 });
 
-async function expectFailure(attempt: Promise<unknown>): Promise<PageForgeError> {
+async function expectFailure(attempt: Promise<unknown>): Promise<Dom2PdfError> {
   const caught = await attempt.then(() => null, (error: unknown) => error);
-  expect(caught).toBeInstanceOf(PageForgeError);
-  return caught as PageForgeError;
+  expect(caught).toBeInstanceOf(Dom2PdfError);
+  return caught as Dom2PdfError;
 }
 
 test.describe("failure forensics (diagnostics)", () => {
@@ -44,9 +44,9 @@ test.describe("failure forensics (diagnostics)", () => {
     expect(bundle?.url).toContain("diag-probe.html");
 
     const consoleTexts = (bundle?.console ?? []).map((entry) => entry.text);
-    expect(consoleTexts).toContain("pageforge-diag-probe");
-    expect(consoleTexts).toContain("pageforge-diag-error");
-    expect(bundle?.pageErrors.join(" ")).toContain("pageforge-diag-pageerror");
+    expect(consoleTexts).toContain("dom2pdf-diag-probe");
+    expect(consoleTexts).toContain("dom2pdf-diag-error");
+    expect(bundle?.pageErrors.join(" ")).toContain("dom2pdf-diag-pageerror");
 
     const missing = (bundle?.requests ?? []).find((record) => record.url.includes("missing-diag-image.png"));
     expect(missing?.status).toBe(404);

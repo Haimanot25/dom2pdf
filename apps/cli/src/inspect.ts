@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { statSync } from "node:fs";
 import path from "node:path";
 import type { Command } from "commander";
-import { inspectPdf, PageForgeError } from "pageforge-pdf";
+import { inspectPdf, Dom2PdfError } from "dom2pdf-js";
 import { formatBytes, UsageError } from "./shared.js";
 
 interface InspectJson {
@@ -28,7 +28,7 @@ export function registerInspectCommand(program: Command): void {
         bytes = readFileSync(resolved);
       } catch (cause) {
         if (cause instanceof UsageError) throw cause;
-        throw new PageForgeError({
+        throw new Dom2PdfError({
           code: "INVALID_INPUT",
           message: `Cannot read ${resolved}: ${cause instanceof Error ? cause.message : String(cause)}`,
           cause,

@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { ERROR_CODES, PageForgeError, isPageForgeError, toPageForgeError } from "../src/errors/index.js";
+import { ERROR_CODES, Dom2PdfError, isDom2PdfError, toDom2PdfError } from "../src/errors/index.js";
 
-describe("PageForgeError", () => {
+describe("Dom2PdfError", () => {
   it("carries a stable code, message, details, and cause", () => {
     const cause = new Error("boom");
-    const error = new PageForgeError({
+    const error = new Dom2PdfError({
       code: "NAVIGATION_FAILED",
       message: "nav failed",
       details: { url: "https://example.com/" },
       cause,
     });
     expect(error.code).toBe("NAVIGATION_FAILED");
-    expect(error.name).toBe("PageForgeError");
+    expect(error.name).toBe("Dom2PdfError");
     expect(error.message).toBe("nav failed");
     expect(error.details).toEqual({ url: "https://example.com/" });
     expect(error.cause).toBe(cause);
@@ -19,7 +19,7 @@ describe("PageForgeError", () => {
   });
 
   it("serializes to JSON with the code", () => {
-    const error = new PageForgeError({ code: "BLOCKED_URL", message: "nope", details: { a: 1 } });
+    const error = new Dom2PdfError({ code: "BLOCKED_URL", message: "nope", details: { a: 1 } });
     const round = JSON.parse(JSON.stringify(error)) as unknown;
     expect(round).toMatchObject({ code: "BLOCKED_URL", message: "nope", details: { a: 1 } });
   });
@@ -35,19 +35,19 @@ describe("PageForgeError", () => {
   });
 
   it("identifies errors structurally, including plain serialized objects", () => {
-    expect(isPageForgeError(new PageForgeError({ code: "CANCELLED", message: "x" }))).toBe(true);
-    expect(isPageForgeError({ code: "CANCELLED", message: "x" })).toBe(true);
-    expect(isPageForgeError({ code: "NOT_A_REAL_CODE", message: "x" })).toBe(false);
-    expect(isPageForgeError(new Error("plain"))).toBe(false);
-    expect(isPageForgeError(null)).toBe(false);
-    expect(isPageForgeError("CANCELLED")).toBe(false);
+    expect(isDom2PdfError(new Dom2PdfError({ code: "CANCELLED", message: "x" }))).toBe(true);
+    expect(isDom2PdfError({ code: "CANCELLED", message: "x" })).toBe(true);
+    expect(isDom2PdfError({ code: "NOT_A_REAL_CODE", message: "x" })).toBe(false);
+    expect(isDom2PdfError(new Error("plain"))).toBe(false);
+    expect(isDom2PdfError(null)).toBe(false);
+    expect(isDom2PdfError("CANCELLED")).toBe(false);
   });
 
-  it("wraps unknown causes without double-wrapping PageForge errors", () => {
-    const original = new PageForgeError({ code: "BLOCKED_URL", message: "keep" });
-    expect(toPageForgeError(original, { code: "BROWSER_FAILURE", message: "wrap" })).toBe(original);
+  it("wraps unknown causes without double-wrapping dom2pdf errors", () => {
+    const original = new Dom2PdfError({ code: "BLOCKED_URL", message: "keep" });
+    expect(toDom2PdfError(original, { code: "BROWSER_FAILURE", message: "wrap" })).toBe(original);
 
-    const wrapped = toPageForgeError(new Error("inner"), { code: "BROWSER_FAILURE", message: "outer" });
+    const wrapped = toDom2PdfError(new Error("inner"), { code: "BROWSER_FAILURE", message: "outer" });
     expect(wrapped.code).toBe("BROWSER_FAILURE");
     expect(wrapped.message).toBe("outer");
     expect(wrapped.cause).toBeInstanceOf(Error);

@@ -160,11 +160,11 @@ test.describe("readiness: resource diagnostics", () => {
     const withFonts = await converter.convert({
       input: { type: "url", url: `${server.origin}/broken-font.html` },
       security: { allowLoopback: true },
-      readiness: { waitForFonts: ["PageForge Missing"] },
+      readiness: { waitForFonts: ["dom2pdf Missing"] },
     });
     const warning = withFonts.report.warnings.find((w) => w.code === "resources.font-unavailable");
     expect(warning?.source).toBe("observed");
-    expect(warning?.message).toContain("PageForge Missing");
+    expect(warning?.message).toContain("dom2pdf Missing");
 
     const check = withFonts.report.checks.find((entry) => entry.id === "readiness");
     expect(check?.status).toBe("pass");

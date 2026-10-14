@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULTS, normalizeOptions, parseConvertOptions } from "../src/config/normalize.js";
 import { computeSliceGeometry, expandPageRanges, fidelityDiagnostics, type FidelityReport } from "../src/quality/fidelity.js";
-import { PageForgeError } from "../src/errors/index.js";
+import { Dom2PdfError } from "../src/errors/index.js";
 
 const htmlInput = { type: "html" as const, html: "<p>x</p>" };
 
@@ -216,7 +216,7 @@ describe("fidelity convert options", () => {
       } catch (error) {
         caught = error;
       }
-      expect(caught).toBeInstanceOf(PageForgeError);
+      expect(caught).toBeInstanceOf(Dom2PdfError);
     }
   });
 
@@ -227,8 +227,8 @@ describe("fidelity convert options", () => {
     } catch (error) {
       caught = error;
     }
-    expect(caught).toBeInstanceOf(PageForgeError);
-    expect((caught as PageForgeError).code).toBe("UNSUPPORTED_OPTION");
-    expect((caught as PageForgeError).message).toContain("pages");
+    expect(caught).toBeInstanceOf(Dom2PdfError);
+    expect((caught as Dom2PdfError).code).toBe("UNSUPPORTED_OPTION");
+    expect((caught as Dom2PdfError).message).toContain("pages");
   });
 });

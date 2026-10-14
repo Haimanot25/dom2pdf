@@ -31,7 +31,7 @@ export interface ScenarioResult {
 }
 
 export interface BenchmarkMeta {
-  tool: "pageforge-benchmark";
+  tool: "dom2pdf-benchmark";
   version: string;
   startedAt: string;
   finishedAt: string;
@@ -66,7 +66,7 @@ function formatBytes(bytes: number | undefined): string {
 export function formatReportHuman(report: BenchmarkReport): string {
   const { meta } = report;
   const lines: string[] = [
-    `PageForge benchmark — ${report.scenarios.length} scenario(s), ${meta.iterations} measured run(s), ${meta.warmup} warm-up run(s)`,
+    `dom2pdf benchmark — ${report.scenarios.length} scenario(s), ${meta.iterations} measured run(s), ${meta.warmup} warm-up run(s)`,
     "",
   ];
   for (const scenario of report.scenarios) {

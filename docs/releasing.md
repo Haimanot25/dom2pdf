@@ -1,8 +1,8 @@
 # Releasing
 
-PageForge uses semver. All workspace packages share one version (currently
-`0.1.0-alpha.0`) so a release is a single bump: `pageforge-pdf`,
-`pageforge-cli`, and `pageforge-benchmark` always match.
+dom2pdf uses semver. All workspace packages share one version (currently
+`0.1.0-alpha.0`) so a release is a single bump: `dom2pdf-js`,
+`dom2pdf-cli`, and `dom2pdf-benchmark` always match.
 
 ## Version bump
 
@@ -32,18 +32,18 @@ All must exit 0 (unit/e2e may report their known skips). Also verify the
 container builds and converts:
 
 ```bash
-docker build -t pageforge:alpha .
+docker build -t dom2pdf:alpha .
 docker run --rm --cap-add=SYS_ADMIN -v "$PWD/fixtures:/work" \
-  pageforge:alpha convert /work/basic-text.html -o /work/out.pdf
+  dom2pdf:alpha convert /work/basic-text.html -o /work/out.pdf
 ```
 
 `--cap-add=SYS_ADMIN` is required on stock Docker + Ubuntu 24.04 (noble):
 the default seccomp/AppArmor profile blocks the user-namespace creation
-Chromium's **sandbox** uses, and PageForge never disables the sandbox. The
+Chromium's **sandbox** uses, and dom2pdf never disables the sandbox. The
 capability grants namespace permission only — seccomp stays enabled.
 `--security-opt seccomp=unconfined` also works; `--no-sandbox` is not
-supported by PageForge and the CLI will refuse to fake a result for it.
-The container runs as a non-root user (`pageforge`, uid 10001), which the
+supported by dom2pdf and the CLI will refuse to fake a result for it.
+The container runs as a non-root user (`dom2pdf`, uid 10001), which the
 sandbox additionally requires.
 
 ## Publish
@@ -60,6 +60,6 @@ with `pnpm publish -r --dry-run`.
 
 ## After the release
 
-- Verify the published tarballs: `npm pack pageforge-pdf --dry-run` should
+- Verify the published tarballs: `npm pack dom2pdf-js --dry-run` should
   contain `dist/` only.
 - Open the next milestone and move deferred items forward.

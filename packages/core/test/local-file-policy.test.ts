@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { PageForgeError } from "../src/errors/index.js";
+import { Dom2PdfError } from "../src/errors/index.js";
 import { assertLocalFileAllowed, type LocalFilePolicy } from "../src/security/destination-policy.js";
 
 let workspace: string;
@@ -10,7 +10,7 @@ let allowedDir: string;
 let outsideDir: string;
 
 beforeEach(async () => {
-  workspace = await mkdtemp(path.join(tmpdir(), "pageforge-file-policy-"));
+  workspace = await mkdtemp(path.join(tmpdir(), "dom2pdf-file-policy-"));
   allowedDir = path.join(workspace, "allowed");
   outsideDir = path.join(workspace, "outside");
   await mkdir(allowedDir);
@@ -32,15 +32,15 @@ function policy(overrides: Partial<LocalFilePolicy> = {}): LocalFilePolicy {
   };
 }
 
-async function expectCode(promise: Promise<unknown>, code: string): Promise<PageForgeError> {
+async function expectCode(promise: Promise<unknown>, code: string): Promise<Dom2PdfError> {
   let caught: unknown;
   try {
     await promise;
   } catch (error) {
     caught = error;
   }
-  expect(caught).toBeInstanceOf(PageForgeError);
-  const error = caught as PageForgeError;
+  expect(caught).toBeInstanceOf(Dom2PdfError);
+  const error = caught as Dom2PdfError;
   expect(error.code).toBe(code);
   return error;
 }

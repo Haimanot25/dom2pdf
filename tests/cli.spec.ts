@@ -11,7 +11,7 @@ let workDir: string;
 
 test.beforeAll(async () => {
   server = await startFixtureServer();
-  workDir = await mkdtemp(path.join(tmpdir(), "pageforge-cli-"));
+  workDir = await mkdtemp(path.join(tmpdir(), "dom2pdf-cli-"));
 });
 
 test.afterAll(async () => {
@@ -19,11 +19,11 @@ test.afterAll(async () => {
   await rm(workDir, { recursive: true, force: true });
 });
 
-test.describe("pageforge CLI", () => {
+test.describe("dom2pdf CLI", () => {
   test("--help lists the available commands and exits 0", async () => {
     const result = await runCli(["--help"]);
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain("Usage: pageforge");
+    expect(result.stdout).toContain("Usage: dom2pdf");
     expect(result.stdout).toContain("convert");
     expect(result.stdout).toContain("inspect");
   });

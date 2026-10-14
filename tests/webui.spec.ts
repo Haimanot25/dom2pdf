@@ -4,7 +4,7 @@ import { chromium, expect, test } from "@playwright/test";
 import { startFixtureServer, type FixtureServer } from "./helpers/fixture-server.js";
 
 /**
- * pageforge-web end to end: real server process, real Chromium, the real UI —
+ * dom2pdf-web end to end: real server process, real Chromium, the real UI —
  * type a target URL, click convert, get a PDF.
  */
 
@@ -21,10 +21,10 @@ test.beforeAll(async () => {
   });
   webUrl = await new Promise<string>((resolve, reject) => {
     let output = "";
-    const timer = setTimeout(() => reject(new Error(`pageforge-web did not start: ${output}`)), 30_000);
+    const timer = setTimeout(() => reject(new Error(`dom2pdf-web did not start: ${output}`)), 30_000);
     child.stdout?.on("data", (chunk: Buffer) => {
       output += chunk.toString("utf8");
-      const match = /pageforge-web listening on (http:\/\/\S+)/.exec(output);
+      const match = /dom2pdf-web listening on (http:\/\/\S+)/.exec(output);
       if (match !== null) {
         clearTimeout(timer);
         resolve(match[1] as string);
@@ -39,13 +39,13 @@ test.afterAll(async () => {
   await fixtureServer?.close();
 });
 
-test.describe("pageforge-web UI", () => {
+test.describe("dom2pdf-web UI", () => {
   test("converts a target URL to a PDF shown in the result card", async () => {
     const browser = await chromium.launch();
     try {
       const page = await browser.newPage();
       await page.goto(webUrl);
-      await expect(page.locator("h1")).toHaveText("PageForge");
+      await expect(page.locator("h1")).toHaveText("dom2pdf");
 
       await page.fill("#url", `${fixtureServer.origin}/basic-text.html`);
       await page.click("#submit");

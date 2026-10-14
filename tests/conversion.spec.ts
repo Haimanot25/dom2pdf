@@ -24,7 +24,7 @@ test.afterAll(async () => {
 test.describe("convert: HTML string input", () => {
   test("produces a structurally valid PDF with a real report", async () => {
     const result = await converter.convert({
-      input: { type: "html", html: "<!doctype html><html><body><h1>Hello PageForge</h1></body></html>" },
+      input: { type: "html", html: "<!doctype html><html><body><h1>Hello dom2pdf</h1></body></html>" },
     });
 
     const header = new TextDecoder("latin1").decode(result.bytes.slice(0, 5));
@@ -86,7 +86,7 @@ test.describe("convert: URL input", () => {
 
     expect(new TextDecoder("latin1").decode(result.bytes.slice(0, 5))).toBe(PDF_MAGIC);
     const [pageText = ""] = await extractPdfText(result.bytes);
-    expect(pageText).toContain("PageForge basic fixture");
+    expect(pageText).toContain("dom2pdf basic fixture");
     expect(pageText).toContain("example.com");
     expect(result.report.pdf.pageCount).toBeGreaterThanOrEqual(1);
   });
@@ -108,7 +108,7 @@ test.describe("convert: URL input", () => {
   test("passes sites that serve error pages to the HeadlessChrome UA string", async () => {
     const url = `${server.origin}/ua-sensitive.html`;
 
-    // The gate 500s any UA containing "HeadlessChrome"; PageForge's default is
+    // The gate 500s any UA containing "HeadlessChrome"; dom2pdf's default is
     // a standard Chrome string for this build, so the conversion succeeds…
     const result = await converter.convert({
       input: { type: "url", url },
@@ -143,10 +143,10 @@ test.describe("convert: URL input", () => {
     const custom = await converter.convert({
       input: { type: "url", url: echoUrl },
       security: { allowLoopback: true },
-      browser: { userAgent: "PageForge-Test-UA/9.9" },
+      browser: { userAgent: "dom2pdf-Test-UA/9.9" },
     });
     const [customText = ""] = await extractPdfText(custom.bytes);
-    expect(customText.replace(/\s+/g, "")).toContain("PageForge-Test-UA/9.9");
+    expect(customText.replace(/\s+/g, "")).toContain("dom2pdf-Test-UA/9.9");
   });
 });
 
@@ -157,7 +157,7 @@ test.describe("convert: local file input", () => {
       security: { allowLocalFiles: true, allowedLocalDirectories: [FIXTURES_DIR] },
     });
     const [pageText = ""] = await extractPdfText(result.bytes);
-    expect(pageText).toContain("PageForge basic fixture");
+    expect(pageText).toContain("dom2pdf basic fixture");
   });
 
   test("denies local file access by default", async () => {
@@ -221,7 +221,7 @@ test.describe("convert: deadlines and lifecycle", () => {
   });
 
   test("save() writes the PDF bytes to disk", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "pageforge-save-"));
+    const directory = await mkdtemp(path.join(tmpdir(), "dom2pdf-save-"));
     try {
       const target = path.join(directory, "nested", "output.pdf");
       const result = await converter.convert({

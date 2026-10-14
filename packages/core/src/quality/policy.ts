@@ -1,5 +1,5 @@
 import type { NormalizedQualityOptions } from "../config/normalize.js";
-import { PageForgeError } from "../errors/index.js";
+import { Dom2PdfError } from "../errors/index.js";
 import type { QualityReport } from "./report.js";
 
 /**
@@ -76,7 +76,7 @@ export function assertQualityPolicy(
 ): void {
   const violations = qualityViolations(policy, metrics);
   if (violations.length === 0) return;
-  throw new PageForgeError({
+  throw new Dom2PdfError({
     code: "QUALITY_POLICY_FAILED",
     message: `Output rejected by quality policy: ${violations.map((violation) => violation.message).join("; ")}`,
     details: { violations, report },

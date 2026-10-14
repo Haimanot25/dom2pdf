@@ -1,6 +1,6 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { PageForgeError, type ErrorCode } from "pageforge-pdf";
+import { Dom2PdfError, type ErrorCode } from "dom2pdf-js";
 import {
   buildConvertOptions,
   errorToJson,
@@ -19,7 +19,7 @@ import {
 const STDIN_HTML = () => "<p>piped</p>";
 
 function flags(overrides: Partial<ConvertFlags> = {}): ConvertFlags {
-  return { output: "pageforge.pdf", ...overrides };
+  return { output: "dom2pdf.pdf", ...overrides };
 }
 
 describe("resolveInputSource", () => {
@@ -194,7 +194,7 @@ describe("buildConvertOptions", () => {
 describe("exit codes and error rendering", () => {
   it("maps error codes to the documented exit codes", () => {
     const withCode = (code: ErrorCode): number =>
-      exitCodeFor(new PageForgeError({ code, message: "x" }));
+      exitCodeFor(new Dom2PdfError({ code, message: "x" }));
     expect(withCode("INVALID_INPUT")).toBe(EXIT_CODES.error);
     expect(withCode("BLOCKED_URL")).toBe(EXIT_CODES.error);
     expect(withCode("READINESS_TIMEOUT")).toBe(EXIT_CODES.error);
@@ -205,9 +205,9 @@ describe("exit codes and error rendering", () => {
   });
 
   it("renders human and JSON error forms", () => {
-    const error = new PageForgeError({ code: "BLOCKED_URL", message: "nope", details: { a: 1 } });
+    const error = new Dom2PdfError({ code: "BLOCKED_URL", message: "nope", details: { a: 1 } });
     expect(errorToText(error)).toBe("Error [BLOCKED_URL]: nope");
-    expect(errorToJson(error)).toMatchObject({ name: "PageForgeError", code: "BLOCKED_URL", details: { a: 1 } });
+    expect(errorToJson(error)).toMatchObject({ name: "Dom2PdfError", code: "BLOCKED_URL", details: { a: 1 } });
     expect(errorToText(new Error("plain"))).toBe("Error: plain");
     expect(errorToJson("just a string")).toEqual({ name: "Error", message: "just a string" });
   });

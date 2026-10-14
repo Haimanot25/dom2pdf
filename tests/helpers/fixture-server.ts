@@ -127,9 +127,9 @@ ${paragraphs}
 <p>diagnostics probe page</p>
 <img src="/missing-diag-image.png" alt="missing" style="display:block;width:10px;height:10px">
 <script>
-  console.log("pageforge-diag-probe");
-  console.error("pageforge-diag-error");
-  setTimeout(function () { throw new Error("pageforge-diag-pageerror"); }, 0);
+  console.log("dom2pdf-diag-probe");
+  console.error("dom2pdf-diag-error");
+  setTimeout(function () { throw new Error("dom2pdf-diag-pageerror"); }, 0);
 </script>
 </body>
 </html>`);

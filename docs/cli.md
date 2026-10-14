@@ -1,9 +1,9 @@
 # CLI reference
 
-The `pageforge` binary lives in `apps/cli` and contains **no conversion or
-benchmark logic** — `convert` and `inspect` delegate to the `pageforge-pdf`
-library, `benchmark` to `pageforge-benchmark`. In this repository run it as
-`pnpm pageforge …`.
+The `dom2pdf` binary lives in `apps/cli` and contains **no conversion or
+benchmark logic** — `convert` and `inspect` delegate to the `dom2pdf-js`
+library, `benchmark` to `dom2pdf-benchmark`. In this repository run it as
+`pnpm dom2pdf …`.
 
 ## Exit codes (stable contract)
 
@@ -15,7 +15,7 @@ library, `benchmark` to `pageforge-benchmark`. In this repository run it as
 | `4` | Output rejected by a configured quality policy |
 | `130` | Cancelled with Ctrl-C (128 + SIGINT) |
 
-## `pageforge convert [source]`
+## `dom2pdf convert [source]`
 
 `source` is an `http(s)` URL or a local file path. Use `--stdin` instead to
 read HTML from a pipe. Anything with a URL scheme (`ftp://…`) is sent to the
@@ -23,11 +23,11 @@ library as a URL and rejected there with `BLOCKED_URL` (exit 3), not a usage
 error.
 
 ```bash
-pageforge convert https://example.com -o example.pdf
-pageforge convert ./report.html -o report.pdf --format A4 --margin 15mm
-cat page.html | pageforge convert --stdin -o out.pdf
-pageforge convert ./dashboard.html --mode screen --viewport 1440x900
-pageforge convert ./invoice.html --min-pages 1 --max-pages 4 --json > report.json
+dom2pdf convert https://example.com -o example.pdf
+dom2pdf convert ./report.html -o report.pdf --format A4 --margin 15mm
+cat page.html | dom2pdf convert --stdin -o out.pdf
+dom2pdf convert ./dashboard.html --mode screen --viewport 1440x900
+dom2pdf convert ./invoice.html --min-pages 1 --max-pages 4 --json > report.json
 ```
 
 ### Flags
@@ -36,7 +36,7 @@ pageforge convert ./invoice.html --min-pages 1 --max-pages 4 --json > report.jso
 
 | Flag | Meaning |
 | --- | --- |
-| `-o, --output <path>` | Output path (default `pageforge.pdf`) |
+| `-o, --output <path>` | Output path (default `dom2pdf.pdf`) |
 | `--json` | Print the quality report as JSON on stdout (errors as JSON on stderr) |
 | `--quiet` | Suppress success output; errors still go to stderr |
 
@@ -93,16 +93,16 @@ verifies the resolved path (symlinks included).
 Ctrl-C (SIGINT) aborts the in-flight conversion: the browser context is
 cleaned up and the process exits `130` with `CANCELLED` on stderr.
 
-## `pageforge inspect <file>`
+## `dom2pdf inspect <file>`
 
 Structurally inspects an existing PDF using the library's inspector:
 
 ```bash
-pageforge inspect report.pdf
+dom2pdf inspect report.pdf
 # report.pdf: 3 page(s) · 45.2 KB · %PDF-1.4
 #   text: 12345 character(s) across 3 page(s) · empty pages: none
 
-pageforge inspect report.pdf --json
+dom2pdf inspect report.pdf --json
 ```
 
 `--json` prints:
@@ -119,18 +119,18 @@ pageforge inspect report.pdf --json
 
 A missing or unreadable file exits `3` (`INVALID_INPUT`).
 
-## `pageforge benchmark`
+## `dom2pdf benchmark`
 
-Runs the deterministic multi-engine benchmark (PageForge, raw Playwright,
+Runs the deterministic multi-engine benchmark (dom2pdf, raw Playwright,
 html2pdf.js, WeasyPrint) — methodology, engines, and honesty rules are
 documented in [Benchmark](benchmark.md).
 
 ```bash
-pageforge benchmark                                   # full suite, human table
-pageforge benchmark --json > report.json              # machine-readable report
-pageforge benchmark --iterations 3 --warmup 1         # timing controls
-pageforge benchmark --scenarios simple --engines pageforge,weasyprint
-pageforge benchmark --output report.json              # also write the JSON file
+dom2pdf benchmark                                   # full suite, human table
+dom2pdf benchmark --json > report.json              # machine-readable report
+dom2pdf benchmark --iterations 3 --warmup 1         # timing controls
+dom2pdf benchmark --scenarios simple --engines dom2pdf,weasyprint
+dom2pdf benchmark --output report.json              # also write the JSON file
 ```
 
 | Flag | Default | Maps to |
@@ -144,7 +144,7 @@ pageforge benchmark --output report.json              # also write the JSON file
 
 A missing external tool is an honest **skip** (`status: "skipped"` with the
 install hint), not an error. The command exits `3` only when a *required*
-engine — `pageforge` or its `playwright-raw` baseline — fails on a scenario.
+engine — `dom2pdf` or its `playwright-raw` baseline — fails on a scenario.
 
 ## JSON formats
 

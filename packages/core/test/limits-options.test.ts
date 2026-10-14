@@ -1,19 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { createConverter } from "../src/api/converter.js";
 import { DEFAULTS, normalizeOptions, parseConvertOptions } from "../src/config/normalize.js";
-import { PageForgeError } from "../src/errors/index.js";
+import { Dom2PdfError } from "../src/errors/index.js";
 
 const htmlInput = { type: "html" as const, html: "<p>x</p>" };
 
-function expectThrows(fn: () => unknown): PageForgeError {
+function expectThrows(fn: () => unknown): Dom2PdfError {
   let caught: unknown;
   try {
     fn();
   } catch (error) {
     caught = error;
   }
-  expect(caught).toBeInstanceOf(PageForgeError);
-  return caught as PageForgeError;
+  expect(caught).toBeInstanceOf(Dom2PdfError);
+  return caught as Dom2PdfError;
 }
 
 describe("limits convert options", () => {
@@ -58,8 +58,8 @@ describe("createConverter concurrency validation", () => {
       const caught = await createConverter({ limits: { maxConcurrentConversions: value } }).catch(
         (error: unknown) => error,
       );
-      expect(caught).toBeInstanceOf(PageForgeError);
-      expect((caught as PageForgeError).code).toBe("INVALID_INPUT");
+      expect(caught).toBeInstanceOf(Dom2PdfError);
+      expect((caught as Dom2PdfError).code).toBe("INVALID_INPUT");
     }
   });
 

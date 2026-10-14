@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
-import { PageForgeError } from "../src/errors/index.js";
+import { Dom2PdfError } from "../src/errors/index.js";
 import { cancelledError, raceWithAbort, throwIfAborted } from "../src/utils/cancellation.js";
 
 const delay = (ms: number): Promise<string> =>
   new Promise((resolve) => setTimeout(() => resolve("done"), ms));
 
 describe("cancelledError / throwIfAborted", () => {
-  it("creates a CANCELLED PageForgeError", () => {
+  it("creates a CANCELLED Dom2PdfError", () => {
     const error = cancelledError();
-    expect(error).toBeInstanceOf(PageForgeError);
+    expect(error).toBeInstanceOf(Dom2PdfError);
     expect(error.code).toBe("CANCELLED");
     expect(cancelledError("custom").message).toBe("custom");
   });
@@ -23,7 +23,7 @@ describe("cancelledError / throwIfAborted", () => {
       throwIfAborted(controller.signal);
       throw new Error("expected throwIfAborted to throw");
     } catch (error) {
-      expect((error as PageForgeError).code).toBe("CANCELLED");
+      expect((error as Dom2PdfError).code).toBe("CANCELLED");
     }
   });
 });
@@ -57,8 +57,8 @@ describe("raceWithAbort", () => {
       await pending;
       throw new Error("expected raceWithAbort to reject");
     } catch (error) {
-      expect((error as PageForgeError).code).toBe("CANCELLED");
-      expect((error as PageForgeError).message).toBe("stopped early");
+      expect((error as Dom2PdfError).code).toBe("CANCELLED");
+      expect((error as Dom2PdfError).message).toBe("stopped early");
     }
   });
 

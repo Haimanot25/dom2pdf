@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { PageForgeError } from "../errors/index.js";
+import { Dom2PdfError } from "../errors/index.js";
 import type { QualityReport } from "../quality/report.js";
 import type { ConvertResult } from "./types.js";
 
@@ -12,7 +12,7 @@ export class ConversionResult implements ConvertResult {
 
   async save(target: string): Promise<void> {
     if (typeof target !== "string" || target.length === 0) {
-      throw new PageForgeError({
+      throw new Dom2PdfError({
         code: "INVALID_INPUT",
         message: "save(path) requires a non-empty path string",
         details: { path: String(target) },

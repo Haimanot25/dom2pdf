@@ -1,11 +1,11 @@
 {
-  "name": "pageforge-cli",
+  "name": "dom2pdf-cli",
   "version": "0.1.0-alpha.0",
-  "description": "PageForge — command-line HTML-to-PDF conversion and PDF inspection",
+  "description": "dom2pdf — command-line HTML-to-PDF conversion and PDF inspection",
   "license": "MIT",
   "type": "module",
   "bin": {
-    "pageforge": "./dist/index.js"
+    "dom2pdf": "./dist/index.js"
   },
   "files": [
     "dist",
@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "commander": "15.0.0",
-    "pageforge-benchmark": "workspace:*",
-    "pageforge-pdf": "workspace:*"
+    "dom2pdf-benchmark": "workspace:*",
+    "dom2pdf-js": "workspace:*"
   }
 }
