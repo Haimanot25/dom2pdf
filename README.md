@@ -2,7 +2,7 @@
 
 **PageForge** is an open-source HTML-to-PDF conversion engine built on Playwright's Chromium. It converts URLs, HTML strings, and explicitly-permitted local HTML files into PDFs that preserve website appearance as closely as the browser and the PDF format allow, keeping text selectable and searchable wherever possible.
 
-> **Status: pre-alpha (Phase 6 of 6 — complete).** This repository is under active construction. Both rendering modes work — `document` (print CSS) and `screen` (paper-fit output policy) — the readiness phase plus structured quality checks/policies are in place, the `pageforge` CLI (`convert`, `inspect`, `benchmark`) and the local `pageforge-web` UI are usable, every conversion runs behind an enforced request policy with resource limits, CI runs the full gate, and the production Docker image keeps Chromium's sandbox on. See [Roadmap](#roadmap) — no feature is documented here before it works.
+> **Status: pre-alpha (Phase 8 of 8 — complete; alpha publish pending).** This repository is under active construction. Both rendering modes work — `document` (print CSS) and `screen` (paper-fit output policy) — the readiness phase (including adaptive per-resource patience and lazy-load drain) plus structured quality checks/policies are in place, every conversion verifies its own output (render-fidelity comparison against the live page, failure forensics, optional byte-reproducible output), the `pageforge` CLI (`convert`, `inspect`, `benchmark`) and the local `pageforge-web` UI are usable, every conversion runs behind an enforced request policy with resource limits, CI runs the full gate, and the production Docker image keeps Chromium's sandbox on. See [Roadmap](#roadmap) — no feature is documented here before it works.
 
 ## Quick start
 
@@ -68,7 +68,7 @@ await converter.convert({
 
 ### Quality report & policies
 
-Every successful conversion returns a structured report: `checks` (`pdf-structure`, `readiness`, `resources`, `pdf-text`, and mode-specific ones), `warnings` (each labeled `observed` = measured, or `heuristic` = estimated), `timings`, and measured PDF facts. Resource problems (failed requests, HTTP ≥ 400, broken images, failed web fonts) and empty pages surface as warnings with stable codes.
+Every successful conversion returns a structured report: `checks` (`pdf-structure`, `readiness`, `resources`, `pdf-text`, `render.fidelity`, and mode-specific ones), `warnings` (each labeled `observed` = measured, or `heuristic` = estimated), `timings`, and measured PDF facts. Resource problems (failed requests, HTTP ≥ 400, broken images, failed web fonts) and empty pages surface as warnings with stable codes.
 
 Policies compare measured output against your expectations and fail with `QUALITY_POLICY_FAILED` (carrying `details.violations` plus the full report):
 
@@ -78,6 +78,14 @@ await converter.convert({
   quality: { minTextChars: 500, minPages: 1, maxPages: 4, failOnWarnings: false },
 });
 ```
+
+### Verified output
+
+Every conversion can verify itself after rendering — none of this claims pixel-perfectness; each measurement is a heuristic with honest skip rules:
+
+- **Render fidelity** (on by default): sampled pages of the produced PDF are re-rasterized inside Chromium (pdf.js) and compared, page by page, against screenshots of the live page at the print layout width. `report.fidelity` carries per-page SSIM / pHash / alignment; below `fidelity.threshold` (default `0.8`) you get a `render.fidelity` warning. Unverifiable layouts (header/footer templates, unmappable `pageRanges`) report `status: "skipped"` with the reason — scores are never fabricated.
+- **Failure forensics** (`diagnostics: true`, always on in the web UI): on failure, `error.details.diagnostics` carries the console transcript, failed requests, the DOM, and a screenshot of what the page was doing. The CLI writes it to `<output>.diag/` with `--diagnostics`.
+- **Deterministic output** (`deterministic: true` / `--deterministic`): Chromium's two date stamps are zeroed in place so repeated conversions on the same browser build are byte-identical; `report.deterministic` carries a content digest over the extracted page text.
 
 ### Inputs
 
@@ -132,6 +140,9 @@ Requires Node.js ≥ 22.13 (24 LTS recommended) and pnpm.
 4. ✅ **Phase 4 — CLI & documentation**: `pageforge convert|inspect` with `--help`, JSON reports, stable exit codes (0/2/3/4/130), SIGINT cancellation; guides under `docs/`.
 5. ✅ **Phase 5 — Security & reliability**: request-layer policies at the network layer (`BLOCKED_REDIRECT`, `BLOCKED_RESOURCE`, scripted-navigation blocks), resource limits (`RESOURCE_LIMIT_EXCEEDED`: requests, output bytes, fail-fast concurrency cap), credential redaction on error paths.
 6. ✅ **Phase 6 — Benchmark & alpha**: `pageforge benchmark` (deterministic fixtures; PageForge vs raw-Playwright baseline vs html2pdf.js vs WeasyPrint with honest skips), GitHub Actions CI, production Docker image (sandbox on), release docs.
+7. ✅ **Local web UI (`pageforge-web`)**: localhost-only URL→PDF form; the full security policy applies (loopback/private targets need explicit server flags; the UI cannot escalate).
+8. ✅ **Phase 7 — Adaptive readiness**: per-resource patience (`readiness.slowResourceMs`) so one hung asset cannot burn the shared deadline, and a bounded lazy-load drain (`readiness.lazyLoad`) so `loading="lazy"` content is actually fetched.
+9. ✅ **Phase 8 — Verified output**: render-fidelity verification (`report.fidelity`, honest skip rules), failure forensics (`error.details.diagnostics`, CLI `--diagnostics`, always-on in the web UI), and deterministic byte-reproducible output (`deterministic`, CLI `--deterministic`, content digest).
 
 ## License
 

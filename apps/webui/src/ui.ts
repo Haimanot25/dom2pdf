@@ -36,6 +36,10 @@ export function renderUi(): string {
   .links a.secondary { background: #2c4a68; }
   #error { border-color: var(--bad); }
   #error .code { display: inline-block; font: 600 12px ui-monospace, monospace; background: var(--bad); color: white; border-radius: 6px; padding: 2px 8px; margin-bottom: 8px; }
+  .fidelity { font-size: 13px; margin: 2px 0 6px; color: #9fc3e8; }
+  .fidelity.ok { color: #86efac; }
+  .fidelity.warn { color: #fcd34d; }
+  .forensics { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; color: #fcd34d; background: #0e1621; border: 1px solid #2c4a68; border-radius: 8px; padding: 10px 12px; margin-top: 10px; max-height: 240px; overflow: auto; }
   .hint { color: #fcd34d; font-size: 13px; margin-top: 8px; }
   .warnings { color: #fcd34d; font-size: 13px; margin: 4px 0 0; padding-left: 18px; }
   footer { margin-top: 28px; color: #6f8bab; font-size: 12px; }
@@ -83,6 +87,7 @@ export function renderUi(): string {
       <div class="stat"><b id="modeOut">–</b><span>mode</span></div>
     </div>
     <ul class="warnings" id="warnings"></ul>
+    <div class="fidelity" id="fidelity"></div>
     <div class="links">
       <a id="open" href="#" target="_blank" rel="noopener">Open PDF</a>
       <a id="download" href="#" class="secondary" download="pageforge.pdf">Download PDF</a>
@@ -93,6 +98,7 @@ export function renderUi(): string {
     <span class="code" id="errcode">ERROR</span>
     <div id="errmsg"></div>
     <div class="hint" id="errhint"></div>
+    <pre class="forensics" id="forensics"></pre>
   </section>
 
   <footer>
@@ -130,6 +136,23 @@ export function renderUi(): string {
       li.textContent = "[" + w.code + "] " + w.message;
       list.appendChild(li);
     });
+    var fid = document.getElementById("fidelity");
+    var fidelity = resultData.report.fidelity;
+    if (!fidelity) {
+      fid.textContent = "";
+    } else if (fidelity.status === "measured") {
+      var lastPage = fidelity.sampledPages.length > 0
+        ? fidelity.sampledPages[fidelity.sampledPages.length - 1]
+        : 0;
+      var scope = lastPage <= 1 ? "page 1" : "pages 1–" + lastPage;
+      fid.textContent = "Fidelity: mean SSIM " + Number(fidelity.score).toFixed(3) +
+        " vs the source page (threshold " + Number(fidelity.threshold).toFixed(2) + ", " + scope +
+        ") — a visual comparison, not a pixel-perfectness claim";
+      fid.className = "fidelity " + (fidelity.score >= fidelity.threshold ? "ok" : "warn");
+    } else {
+      fid.textContent = "Fidelity: skipped — " + (fidelity.reason || "no reason reported");
+      fid.className = "fidelity warn";
+    }
     if (currentUrl !== null) URL.revokeObjectURL(currentUrl);
     var blob = Uint8Array.from(atob(resultData.pdf), function (c) { return c.charCodeAt(0); });
     currentUrl = URL.createObjectURL(new Blob([blob], { type: "application/pdf" }));
@@ -141,7 +164,7 @@ export function renderUi(): string {
     result.classList.add("show");
   }
 
-  function showError(code, message) {
+  function showError(code, message, details) {
     result.classList.remove("show");
     document.getElementById("errcode").textContent = code;
     document.getElementById("errmsg").textContent = message;
@@ -153,7 +176,45 @@ export function renderUi(): string {
       hint = "The page never settled — some sites keep requests open forever (streaming assets, long polling). Tick “Tolerant readiness” and retry.";
     }
     document.getElementById("errhint").textContent = hint;
+    document.getElementById("forensics").textContent = forensicsText(details);
     error.classList.add("show");
+  }
+
+  // Summarizes the failure-forensics bundle (details.diagnostics) the server
+  // always collects: uncaught page errors, console errors/warnings, and
+  // failed requests at the moment of failure. The screenshot and DOM are in
+  // the bundle too but stay out of this summary.
+  function forensicsText(details) {
+    var bundle = details && details.diagnostics;
+    if (!bundle) return "";
+    var lines = [];
+    var pageErrors = bundle.pageErrors || [];
+    if (pageErrors.length > 0) {
+      lines.push("Uncaught page errors:");
+      pageErrors.slice(0, 8).forEach(function (e) { lines.push("  ! " + e); });
+    }
+    var consoleLines = (bundle.console || []).filter(function (c) {
+      return c.type === "error" || c.type === "warning";
+    });
+    if (consoleLines.length > 0) {
+      lines.push("Console errors/warnings:");
+      consoleLines.slice(0, 8).forEach(function (c) { lines.push("  ! [" + c.type + "] " + c.text); });
+    }
+    var failed = (bundle.requests || []).filter(function (r) {
+      return typeof r.failureText === "string" || (typeof r.status === "number" && r.status >= 400);
+    });
+    if (failed.length > 0) {
+      lines.push("Failed requests:");
+      failed.slice(0, 8).forEach(function (r) {
+        var parts = [];
+        if (typeof r.status === "number") parts.push(String(r.status));
+        if (typeof r.failureText === "string") parts.push(r.failureText);
+        parts.push(r.url);
+        lines.push("  ! " + parts.join(" "));
+      });
+    }
+    if (lines.length === 0) return "";
+    return "Forensics at failure" + (bundle.url ? " (page was at " + bundle.url + ")" : "") + ":\\n" + lines.join("\\n");
   }
 
   form.addEventListener("submit", function (event) {
@@ -180,7 +241,7 @@ export function renderUi(): string {
         show(out.body);
       } else {
         var err = out.body && out.body.error ? out.body.error : { code: "HTTP", message: "unexpected response" };
-        showError(err.code || "ERROR", err.message || "conversion failed");
+        showError(err.code || "ERROR", err.message || "conversion failed", err.details);
       }
     }).catch(function (e) {
       showError("NETWORK", String(e));

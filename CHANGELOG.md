@@ -132,3 +132,18 @@ First public alpha — the six-phase foundation, in order:
   same-machine/same-browser-build property, not a cross-machine guarantee.
 - CLI: `--deterministic` enables the rewrite; the summary prints the content
   digest and normalized span count.
+
+### Phase 8d — Web UI surfacing & docs
+- The web UI result card now shows the render-fidelity line: mean SSIM
+  against the source page with the threshold and the sampled page range,
+  color-coded (green at/above threshold, amber below) and explicitly framed
+  as a visual comparison, not a pixel-perfectness claim; a skipped run shows
+  the reason.
+- The web UI error card now summarizes the always-collected forensics
+  bundle: uncaught page errors, console errors/warnings, and failed requests
+  at the moment of failure (the screenshot and DOM stay in the JSON bundle,
+  out of the card).
+- README: status/roadmap updated through Phase 8 with a new "Verified
+  output" section; `docs/api.md`/`docs/cli.md` cover the new options
+  (`fidelity`, `diagnostics`, `deterministic`), report fields, checks, and
+  warning codes.

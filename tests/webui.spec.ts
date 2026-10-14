@@ -65,6 +65,11 @@ test.describe("pageforge-web UI", () => {
         return String.fromCharCode(...bytes.subarray(0, 5));
       }, openHref as string);
       expect(magic).toBe("%PDF-");
+
+      // The result card surfaces the render-fidelity score (on by default).
+      await expect(page.locator("#fidelity")).toContainText("Fidelity: mean SSIM");
+      await expect(page.locator("#fidelity")).toContainText("not a pixel-perfectness claim");
+      await expect(page.locator("#fidelity")).toHaveClass(/ok/);
     } finally {
       await browser.close();
     }
@@ -80,6 +85,25 @@ test.describe("pageforge-web UI", () => {
       await expect(page.locator("#error")).toHaveClass(/show/, { timeout: 30_000 });
       await expect(page.locator("#errcode")).toHaveText("BLOCKED_URL");
       await expect(page.locator("#result")).not.toHaveClass(/show/);
+    } finally {
+      await browser.close();
+    }
+  });
+
+  test("shows failure forensics in the error card when a conversion fails", async () => {
+    const browser = await chromium.launch();
+    try {
+      const page = await browser.newPage();
+      await page.goto(webUrl);
+      // Loopback is allowed for this server; port 9 makes navigation fail
+      // (refused/unsafe port), so the always-on forensics bundle reports the
+      // request that failed at the moment of failure.
+      await page.fill("#url", "http://127.0.0.1:9/");
+      await page.click("#submit");
+      await expect(page.locator("#error")).toHaveClass(/show/, { timeout: 30_000 });
+      await expect(page.locator("#errcode")).toHaveText("NAVIGATION_FAILED");
+      await expect(page.locator("#forensics")).toContainText("Failed requests:");
+      await expect(page.locator("#forensics")).toContainText("127.0.0.1:9");
     } finally {
       await browser.close();
     }
