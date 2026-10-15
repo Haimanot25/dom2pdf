@@ -81,6 +81,39 @@ test.describe("readiness: network idle and settle", () => {
     ).rejects.toMatchObject({ code: "READINESS_TIMEOUT" });
     expect(Date.now() - started).toBeLessThan(5_000);
   });
+
+  test("chatty traffic with nothing in flight degrades to a warning, not a failure", async () => {
+    // Live news homepages keep the activity clock fresh forever with fast
+    // analytics beacons while transferring almost nothing — a quiet window
+    // never arrives, but the page IS settled. Waiting until the deadline and
+    // failing (the old behavior, found on a 14-site matrix) threw away a
+    // perfectly capturable page under advice that did not apply. The network
+    // stage now stops at its own stage budget, readiness reports the fact,
+    // and the conversion succeeds with an honest warning.
+    const started = Date.now();
+    const result = await converter.convert({
+      input: { type: "url", url: `${server.origin}/network-chatty.html` },
+      security: { allowLoopback: true },
+    });
+
+    expect(Date.now() - started).toBeLessThan(20_000);
+    expect(result.report.status).toBe("succeeded");
+
+    const readiness = result.report.checks.find((entry) => entry.id === "readiness");
+    expect(readiness?.status).toBe("warn");
+    expect(readiness?.detail).toContain("network unsettled (no 300ms quiet)");
+    expect(readiness?.recommendation).toContain("readiness.timeoutMs");
+
+    const warning = result.report.warnings.find(
+      (entry) => entry.code === "readiness.network-unsettled",
+    );
+    expect(warning, "the unsettled wait must be reported, never silent").toBeDefined();
+    expect(warning?.message).toContain("network quiet");
+
+    // The capture itself is complete — degrading costs a warning, not content.
+    const [pageText = ""] = await extractPdfText(result.bytes);
+    expect(pageText).toContain("CHATTY-CONTENT-READY");
+  });
 });
 
 test.describe("readiness: selector", () => {

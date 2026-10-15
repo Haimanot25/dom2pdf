@@ -76,27 +76,37 @@ function isFavicon(url: string): boolean {
 
 export function trackResources(page: Page): ResourceTracker {
   const issues: ResourceIssue[] = [];
-  const requestStarts = new Map<string, number>();
+  // Keyed by the `Request` object — never by URL. A page can legitimately
+  // have several requests for the *same* URL in flight at once (a poll fired
+  // every 50ms with 100ms responses, retried assets), and URL-keyed entries
+  // silently lose them: each new request overwrote the previous start time,
+  // and the first response deleted the entry while later same-URL requests
+  // were still transferring. `inFlightRecent` then reported no transfers
+  // during a stage that was actually downloading — flipping load-vs-churn
+  // verdicts under load (found via a flaky readiness contract test).
+  const inFlightStarts = new Map<Request, { url: string; startedAt: number }>();
   let inFlight = 0;
   let lastActivityAt = Date.now();
 
   // Counting rules chosen so increments/decrements stay balanced across
   // redirects: `request` fires per hop, `response` fires per hop (including
   // `redirectResponse`), and `requestfailed` covers hops that die early.
+  // Each hop settles exactly the object it started with, so no hop can
+  // delete another hop's (or another request's) entry.
   const onRequest = (request: Request): void => {
     if (!isHttpUrl(request.url())) return;
     inFlight += 1;
-    requestStarts.set(request.url(), Date.now());
+    inFlightStarts.set(request, { url: request.url(), startedAt: Date.now() });
     lastActivityAt = Date.now();
   };
-  const onSettled = (url: string): void => {
+  const onSettled = (request: Request): void => {
     inFlight = Math.max(0, inFlight - 1);
-    requestStarts.delete(url);
+    inFlightStarts.delete(request);
     lastActivityAt = Date.now();
   };
   const onResponse = (response: Response): void => {
     if (!isHttpUrl(response.url())) return;
-    onSettled(response.url());
+    onSettled(response.request());
     const url = response.url();
     if (response.status() >= 400 && !isFavicon(url)) {
       issues.push({ kind: "http-error", url: sanitizeUrl(url), status: response.status() });
@@ -104,7 +114,7 @@ export function trackResources(page: Page): ResourceTracker {
   };
   const onRequestFailed = (request: Request): void => {
     if (!isHttpUrl(request.url())) return;
-    onSettled(request.url());
+    onSettled(request);
     const url = request.url();
     if (isFavicon(url)) return;
     const errorText = request.failure()?.errorText;
@@ -124,24 +134,34 @@ export function trackResources(page: Page): ResourceTracker {
     issues: () => [...issues],
     lastActivityAt: () => lastActivityAt,
     inFlight: () => inFlight,
-    requestStartAt: (url: string) => requestStarts.get(url),
+    requestStartAt: (url: string) => {
+      // Newest start among in-flight requests for this URL: a fresh retry for
+      // the same asset must not look stalled while it is still transferring.
+      let newest: number | undefined;
+      for (const entry of inFlightStarts.values()) {
+        if (entry.url === url && (newest === undefined || entry.startedAt > newest)) {
+          newest = entry.startedAt;
+        }
+      }
+      return newest;
+    },
     inFlightRecent: (maxAgeMs: number | undefined) => {
       if (maxAgeMs === undefined) return inFlight;
       const cutoff = Date.now() - maxAgeMs;
       let recent = 0;
-      for (const startedAt of requestStarts.values()) {
-        if (startedAt >= cutoff) recent += 1;
+      for (const entry of inFlightStarts.values()) {
+        if (entry.startedAt >= cutoff) recent += 1;
       }
       return recent;
     },
     stalledUrls: (maxAgeMs: number | undefined) => {
       if (maxAgeMs === undefined || maxAgeMs <= 0) return [];
       const cutoff = Date.now() - maxAgeMs;
-      const stalled: string[] = [];
-      for (const [url, startedAt] of requestStarts) {
-        if (startedAt < cutoff) stalled.push(url);
+      const stalled = new Set<string>();
+      for (const entry of inFlightStarts.values()) {
+        if (entry.startedAt < cutoff) stalled.add(entry.url);
       }
-      return stalled;
+      return [...stalled];
     },
     dispose: () => {
       if (disposed) return;

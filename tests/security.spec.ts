@@ -129,6 +129,10 @@ test.describe("Phase 5: resource limits", () => {
     );
     expect(error.details?.["limit"]).toBe("maxRequests");
     expect(error.details?.["maxRequests"]).toBe(10);
+    // The stop is a policy, not a mystery: the message names the knob that
+    // raises it (real pages like timeanddate.com fire 500+ ad/widget
+    // requests — the cap must stay a documented, honest failure).
+    expect(error.message).toContain("limits.maxRequests");
   });
 
   test("enforces limits.maxOutputBytes with RESOURCE_LIMIT_EXCEEDED", async () => {

@@ -302,7 +302,7 @@ export async function installRequestGuard(page: Page, options: RequestGuardOptio
       if (limitHit) {
         return new Dom2PdfError({
           code: "RESOURCE_LIMIT_EXCEEDED",
-          message: `Request limit reached: a conversion may make at most ${String(maxRequests)} http(s) request(s)`,
+          message: `Request limit reached: a conversion may make at most ${String(maxRequests)} http(s) request(s) — raise limits.maxRequests for widget/ad-dense pages`,
           details: { limit: "maxRequests", maxRequests, counted: requestCount },
         });
       }

@@ -23,6 +23,7 @@ function result(lazy: LazySweepState): ReadinessResult {
     lazy,
     unavailableFonts: [],
     networkIdleMs: 300,
+    networkUnsettled: false,
     selector: undefined,
     settledMs: 0,
     stalledUrls: [],
@@ -106,5 +107,13 @@ describe("describeReadiness", () => {
       }),
     );
     expect(detail).toContain("lazy sweep 5 steps, fonts settled, network idle 300ms");
+  });
+
+  it("names the quiet window that never arrived when the network is unsettled", () => {
+    const detail = describeReadiness({ ...result(idleLazy), networkUnsettled: true });
+    expect(detail).toBe("ready in 4321ms: fonts settled, network unsettled (no 300ms quiet)");
+    // Deliberate degradation, not a pass — the check status is decided by
+    // the converter; the detail must state the fact either way.
+    expect(detail).not.toContain("network idle");
   });
 });

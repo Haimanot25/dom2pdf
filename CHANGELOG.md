@@ -196,3 +196,47 @@ First public alpha — the six-phase foundation, in order:
   and static short pages are asserted to pay nothing. Validated end-to-end
   against a live reveal-on-scroll site (text extraction and hidden-block
   counts restored to the full-page baseline).
+
+### Real-world matrix hardening (live sites)
+
+Validated against a 14-site live matrix (long-form/CJK/RTL wikis, docs
+sites, SPAs, repos, news, commerce) and fixed what it surfaced:
+
+- **Chromium recovery**: a browser dying between conversions (crash, update,
+  OOM kill) used to poison *every* conversion that followed — the manager
+  cleared `browser` on the `disconnected` event but kept its resolved launch
+  task, so it kept handing out the dead process
+  (`newContext: ...has been closed` forever; found when one Chromium death
+  failed four conversions in a row). The browser manager now drops both the
+  browser and its launch task on disconnect, never acquires a browser that
+  is not connected (relaunching at most once), and retries `newContext` once
+  against a fresh launch when the process dies in the window between launch
+  and context creation.
+- **In-flight tracking keyed by request identity**: the resource tracker
+  stored in-flight requests *by URL*, so several concurrent requests for the
+  same URL (a poll fired every 50ms, retried assets) overwrote each other and
+  the first response deleted entries that were still transferring —
+  `inFlightRecent` under-reported real downloads and could flip readiness's
+  loading-vs-churn verdict (surfaced as a load-dependent contract-test
+  failure). The tracker now keys by the `Request` object; `requestStartAt`
+  returns the newest in-flight start for a URL and `stalledUrls` reports each
+  stalled URL once.
+- **Network quiet degrades instead of failing**: live news homepages (BBC
+  News) keep the activity clock fresh forever with fast analytics beacons
+  while transferring almost nothing — a quiet window never arrives, the old
+  code waited out the entire readiness deadline and failed with
+  `READINESS_TIMEOUT` under advice that did not apply to the page. The
+  network stage now judges the traffic over its own stage budget (4s): a
+  stage that is transferring keeps waiting for the deadline, a stage that is
+  only chatty stops and proceeds with a `readiness.network-unsettled`
+  warning (the `readiness` check reports `warn`, never a silent pass).
+  `READINESS_TIMEOUT` at the network stage still fires when the deadline
+  expires with requests genuinely awaiting a response — the
+  never-settles-with-real-transfers contract is unchanged.
+- Docs: the warning-code table was completed (`resources.slow`,
+  `resources.lazy-load-truncated` were missing) and now documents
+  `readiness.network-unsettled`.
+- Matrix outcome after the fixes: all convertible sites produce complete
+  text with honest warnings; HTTP 403 bot walls still fail fast with
+  `NAVIGATION_FAILED`; the remaining outliers (a trailing empty page on
+  GitHub, a fidelity skip on a slow NASA load) are reported, not hidden.

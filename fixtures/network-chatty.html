@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>dom2pdf fixture: chatty network</title>
+  </head>
+  <body>
+    <h1>Chatty fixture</h1>
+    <p>CHATTY-CONTENT-READY</p>
+    <script>
+      // Keeps the activity clock fresh forever — a request every 150ms, each
+      // answered in ~10ms — so no quiet window ever arrives, yet almost
+      // nothing is ever in flight. This is the analytics/tag-manager shape
+      // live news homepages showed: readiness must stop waiting at its stage
+      // budget and proceed with `readiness.network-unsettled` instead of
+      // burning the whole deadline. (In contrast, readiness-polling.html
+      // keeps overlapping transfers in flight and must still fail.)
+      // Unique URLs defeat the HTTP cache so every fetch is real traffic.
+      setInterval(function () {
+        fetch("/__delay/10/chatty.png?n=" + Date.now(), { cache: "no-store" }).catch(function () {});
+      }, 150);
+    </script>
+  </body>
+</html>

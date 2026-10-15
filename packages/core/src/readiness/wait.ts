@@ -89,6 +89,14 @@ export interface ReadinessResult {
   unavailableFonts: string[];
   /** Satisfied network-idle window in ms (`0` = check disabled). */
   networkIdleMs: number;
+  /**
+   * The network wait ended without a quiet window (chatty trackers, or the
+   * deadline expired with nothing in flight). The conversion proceeded with
+   * a `readiness.network-unsettled` warning — readiness reports this instead
+   * of failing, because everything essential (fonts, images, selector) had
+   * already been judged by then.
+   */
+  networkUnsettled: boolean;
   /** Selector that became visible, when requested. */
   selector: string | undefined;
   /** Satisfied settle window in ms (`0` = no settle requested). */
@@ -138,26 +146,73 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// How long the network stage waits for its quiet window before judging the
+// traffic pattern (found on live news homepages: analytics/tag managers keep
+// the activity clock fresh forever, so a quiet window never arrives while
+// nothing is actually transferring). Past this budget, a stage that is
+// *transferring* keeps waiting for the deadline, while a stage that is only
+// chatty stops waiting and reports an honest `readiness.network-unsettled`
+// warning instead of burning the rest of the deadline for no information.
+// The busy share is judged across 25ms samples — never one instant — so a
+// momentary request cannot flip the verdict.
+const NETWORK_QUIET_STAGE_BUDGET_MS = 4_000;
+const NETWORK_CHURN_BUSY_SHARE = 0.5;
+
 /**
  * Waits until no http(s) request is in flight and nothing has happened on the
  * network for `idleMs`, measured from the tracker that has been watching since
  * before navigation — so requests already in flight when readiness starts
  * count. Requests older than the per-resource patience are presumed hung and
- * do not block (they surface as `resources.slow` instead). Rejects with
- * `READINESS_TIMEOUT` if the shared deadline passes first, which is what
- * happens for pages that poll forever unless the check is disabled.
+ * do not block (they surface as `resources.slow` instead).
+ *
+ * Returns how the wait ended:
+ * - `settled` — a real quiet window arrived.
+ * - `unsettled` — the stage budget elapsed on pure request churn (nothing
+ *   transferring, but no quiet window the page's trackers will ever allow),
+ *   or the deadline expired with nothing in flight. Capture proceeds with a
+ *   warning; the caller reports it, never silently.
+ *
+ * Throws `READINESS_TIMEOUT` when the deadline expires with requests
+ * genuinely awaiting a response — or when the stage spent most of its samples
+ * transferring (busy share ≥ `NETWORK_CHURN_BUSY_SHARE`): the page really was
+ * still loading, which is what the timeout advice in the error message is
+ * for. Only a stage that was mostly *idle-but-chatty* degrades to `unsettled`.
  */
 async function waitForNetworkQuiet(
   activity: NetworkActivity,
   idleMs: number,
   deadline: Deadline,
   patienceMs: number,
-): Promise<void> {
+): Promise<"settled" | "unsettled"> {
+  const stageEndsAt = Date.now() + NETWORK_QUIET_STAGE_BUDGET_MS;
+  let busySamples = 0;
+  let totalSamples = 0;
   for (;;) {
-    if (deadline.expired) throw readinessTimeout("network", deadline);
-    if (activity.inFlightRecent(patienceMs > 0 ? patienceMs : undefined) === 0 && Date.now() - activity.lastActivityAt() >= idleMs) {
-      return;
+    const blocking = activity.inFlightRecent(patienceMs > 0 ? patienceMs : undefined);
+    const now = Date.now();
+    totalSamples += 1;
+    if (blocking > 0) busySamples += 1;
+
+    if (blocking === 0 && now - activity.lastActivityAt() >= idleMs) return "settled";
+
+    if (deadline.expired) {
+      // Requests awaiting a response = the page is still loading: this is
+      // the deadline failure the timeout advice is for. Same when the stage
+      // was *mostly* transferring and one idle sample happened to land on
+      // the deadline — the verdict comes from the busy share across the
+      // whole stage, never one instant. Pure request churn (analytics
+      // beacons refreshing the activity clock, nothing transferring) is not
+      // a loading failure: stop waiting, capture, report.
+      if (blocking > 0 || busySamples / totalSamples >= NETWORK_CHURN_BUSY_SHARE) {
+        throw readinessTimeout("network", deadline);
+      }
+      return "unsettled";
     }
+
+    if (now >= stageEndsAt && busySamples / totalSamples < NETWORK_CHURN_BUSY_SHARE) {
+      return "unsettled";
+    }
+
     await sleep(Math.min(25, Math.max(1, deadline.remainingMs())));
   }
 }
@@ -607,13 +662,25 @@ export async function waitForReadiness(
   const images = await resolveImages(page, options, deadline, activity);
 
   let networkIdleMs = 0;
+  let networkUnsettled = false;
   if (options.networkIdleMs > 0) {
-    await waitForNetworkQuiet(activity, options.networkIdleMs, deadline, options.slowResourceMs);
+    const outcome = await waitForNetworkQuiet(
+      activity,
+      options.networkIdleMs,
+      deadline,
+      options.slowResourceMs,
+    );
     networkIdleMs = options.networkIdleMs;
+    networkUnsettled = outcome === "unsettled";
   }
 
   let settledMs = 0;
-  if (options.settleMs > 0) {
+  // The settle beat is enrichment: when the clock is already out (only
+  // reachable via the network stage's deliberate `unsettled` conclusion or a
+  // last-millisecond race), sleeping past the deadline would fail a
+  // conversion readiness decided to finish with a warning. Any genuine
+  // run-out is still caught by the deadline guard after readiness returns.
+  if (options.settleMs > 0 && !deadline.expired) {
     await withDeadline(sleep(options.settleMs), deadline, "settle");
     settledMs = options.settleMs;
   }
@@ -630,6 +697,7 @@ export async function waitForReadiness(
     lazy,
     unavailableFonts,
     networkIdleMs,
+    networkUnsettled,
     selector: options.selector,
     settledMs,
     stalledUrls,
@@ -660,7 +728,13 @@ export function describeReadiness(result: ReadinessResult): string {
     if (result.images.brokenUrls.length > 0) parts.push(`${result.images.brokenUrls.length} broken`);
     if (result.images.slowUrls.length > 0) parts.push(`${result.images.slowUrls.length} slow`);
   }
-  if (result.networkIdleMs > 0) parts.push(`network idle ${result.networkIdleMs}ms`);
+  if (result.networkIdleMs > 0) {
+    parts.push(
+      result.networkUnsettled
+        ? `network unsettled (no ${result.networkIdleMs}ms quiet)`
+        : `network idle ${result.networkIdleMs}ms`,
+    );
+  }
   if (result.selector !== undefined) parts.push(`selector "${result.selector}" visible`);
   if (result.settledMs > 0) parts.push(`settled ${result.settledMs}ms`);
   if (result.stalledUrls.length > 0) parts.push(`${result.stalledUrls.length} stalled request(s)`);

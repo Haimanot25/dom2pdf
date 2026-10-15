@@ -87,7 +87,7 @@ what the readiness phase is for.
 | `images` | boolean | `true` | Wait until every `<img>` finished (failed = finished; each image is given `slowResourceMs` individual patience) |
 | `slowResourceMs` | int, `0` disables | `10000` | Individual patience for a still-pending resource. Out-of-patience images (and other hung requests) no longer block; the conversion proceeds with a `resources.slow` warning naming them. `0` restores blocking until `timeoutMs` |
 | `lazyLoad` | boolean | `true` | Before the other checks, sweep-scroll every scrollable document with bounded steps. Scroll drives three lazy behaviors and the sweep drives all of them: `loading="lazy"`/`data-src` markers, fetch-on-scroll feeds (the document height is re-checked at the bottom, so infinite-scroll content is walked in until growth stalls), and reveal-on-scroll animations (Wix/AOS-style sections that sit at `opacity: 0` until an observer fires — otherwise they print as blank space). Bounded by step count, mid-walk settle windows (the bottom growth check gets the full quiet window), the request cap, and a **time budget** — at most half of the deadline still remaining when the sweep starts, always reserving the rest for the essential checks (fonts, images, network quiet). Exhausting the step limit or the time budget stops the sweep with an honest `truncated: step limit` / `truncated: time budget` detail and a `resources.lazy-load-truncated` warning — the sweep is enrichment and never fails a conversion. Short pages pay nothing; the `readiness` check detail reports the sweep's steps, the large blocks it made visible, and any still hidden |
-| `networkIdleMs` | int, `0` disables | `300` | No network activity for this long; uses a tracker attached **before** navigation, so in-flight requests count. Requests older than `slowResourceMs` count as hung and do not block. Pages that keep *starting* requests (long polling) hit `READINESS_TIMEOUT` unless disabled |
+| `networkIdleMs` | int, `0` disables | `300` | No network activity for this long; uses a tracker attached **before** navigation, so in-flight requests count. Requests older than `slowResourceMs` count as hung and do not block. Pages with requests genuinely still awaiting a response when the deadline expires hit `READINESS_TIMEOUT` — as do pages whose stage spent most of its time transferring. Pure request *churn* (analytics beacons refreshing the activity clock while nothing transfers — typical of news homepages) no longer fails: after a 4s stage budget the wait stops and the conversion proceeds with a `readiness.network-unsettled` warning; the `readiness` check reports `warn` with `network unsettled (no 300ms quiet)` |
 | `selector` | string | — | Wait until a CSS selector is **visible** |
 | `settleMs` | int | `0` | Extra quiet period after the other checks |
 
@@ -198,7 +198,7 @@ expectations.
 
 | Key | Type | Default | Behavior |
 | --- | --- | --- | --- |
-| `maxRequests` | int 1–100000 | `500` | http(s) requests per conversion (favicon excluded); beyond the cap, requests are aborted at the network layer (`details.limit = "maxRequests"`) |
+| `maxRequests` | int 1–100000 | `500` | http(s) requests per conversion (favicon excluded); beyond the cap, requests are aborted at the network layer (`details.limit = "maxRequests"`). Widget/ad-dense homepages can legitimately fire 500+ requests (found on timeanddate.com) — raise the cap for those |
 | `maxOutputBytes` | int ≥ 1 | — | Generated PDF size checked before inspection (`details.limit = "maxOutputBytes"`) |
 
 #### `security` options
@@ -269,7 +269,7 @@ interface FidelityReport {
 | `id` | Present when | Notes |
 | --- | --- | --- |
 | `pdf-structure` | always | pdfjs parsed header + page tree |
-| `readiness` | always | What actually ran: the lazy sweep (steps taken, large blocks revealed, blocks still hidden) + fonts/images/network idle/selector/settle + duration |
+| `readiness` | always | What actually ran: the lazy sweep (steps taken, large blocks revealed, blocks still hidden) + fonts/images/network idle/selector/settle + duration; `warn` when the network wait ended without a quiet window |
 | `resources` | always | Failed requests, HTTP ≥ 400, broken images |
 | `pdf-text` | always | Extractable character count (weak signal: presence, not reading order) |
 | `pdf.determinism` | `deterministic: true` | Date spans zeroed in place plus the content digest; `warn` when a span could not be normalized |
@@ -288,6 +288,9 @@ interface FidelityReport {
 | `resources.http-error` | observed | A response returned HTTP ≥ 400 |
 | `resources.broken-images` | observed | An `<img>` finished without decoding |
 | `resources.font-unavailable` | observed | A `waitForFonts` family failed to load |
+| `resources.slow` | observed | A resource outlived `slowResourceMs` and the conversion proceeded without it |
+| `resources.lazy-load-truncated` | observed | The lazy sweep hit its step limit or time budget; some below-the-fold content may not have been revealed |
+| `readiness.network-unsettled` | observed | The network wait ended without a quiet window (request churn or the deadline expiring with nothing in flight); capture proceeded, so content rendered late by scripts may be missing |
 | `pdf.empty-pages` | observed | A page has no extractable text (may be blank/image-only) |
 | `fidelity.low-score` | heuristic | Sampled pages scored below `fidelity.threshold` (visual comparison, not a pixel-perfectness claim) |
 | `fidelity.skipped` | heuristic | Fidelity verification was enabled but could not run (see the reason) |

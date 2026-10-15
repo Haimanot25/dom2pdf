@@ -62,9 +62,29 @@ export class BrowserManager {
     if (this.closed) {
       throw new Dom2PdfError({ code: "CONVERTER_CLOSED", message: "Converter has been closed" });
     }
-    if (this.browser !== null && this.browser.isConnected()) {
-      return this.browser;
+    // Never hand out a dead browser. A disconnect can race the event handler
+    // below, a launch can resolve to a process that dies immediately, and a
+    // stale launch task once poisoned *every* conversion after one crash
+    // (found on a live-site matrix: Chromium died once, then four
+    // conversions in a row failed `newContext: browser has been closed`).
+    // Drop and relaunch instead — at most one relaunch, then fail honestly.
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const browser = await this.acquireBrowser();
+      if (browser.isConnected()) return browser;
+      this.dropBrowser(browser);
+      if (this.closed) {
+        throw new Dom2PdfError({ code: "CONVERTER_CLOSED", message: "Converter has been closed" });
+      }
     }
+    throw new Dom2PdfError({
+      code: "BROWSER_FAILURE",
+      message: "Chromium died immediately after launch twice in a row; check that the bundled browser can run on this machine",
+      details: { sandbox: this.options.sandbox },
+    });
+  }
+
+  /** Resolves the shared launch task, starting one when none is pending. */
+  private async acquireBrowser(): Promise<Browser> {
     if (this.launchTask === null) {
       this.launchTask = chromium
         .launch({
@@ -76,10 +96,15 @@ export class BrowserManager {
           this.browser = browser;
           browser.on("disconnected", () => {
             if (this.browser === browser) {
-              this.browser = null;
+              this.dropBrowser(browser);
               this.logger.warn("Chromium disconnected; the next conversion will relaunch it");
             }
           });
+          // A process that died before the handler above was attached never
+          // fires `disconnected` for us — check liveness explicitly.
+          if (!browser.isConnected()) {
+            this.dropBrowser(browser);
+          }
           this.logger.debug("Chromium launched", { version: browser.version(), sandbox: this.options.sandbox });
           return browser;
         })
@@ -97,29 +122,60 @@ export class BrowserManager {
   }
 
   /**
+   * Forgets a dead browser (and the launch task that resolved to it) so the
+   * next acquire launches a fresh one. Only clears state still referencing
+   * this exact browser — a relaunch started meanwhile is left alone.
+   */
+  private dropBrowser(browser: Browser): void {
+    if (this.browser === browser) {
+      this.browser = null;
+      this.launchTask = null;
+    }
+  }
+
+  /**
    * Runs `fn` with a fresh, isolated page/context and always closes the
    * context afterwards.
    */
   async usePage<T>(fn: (page: Page, context: BrowserContext) => Promise<T>, options: UsePageOptions): Promise<T> {
-    const browser = await this.ensureBrowser();
+    let browser = await this.ensureBrowser();
 
     if (options.signal?.aborted === true) {
       // Cancelled during browser launch: skip context creation entirely.
       throw cancelledError("Conversion was cancelled before the browser context was created");
     }
 
-    let context: BrowserContext;
-    try {
-      context = await browser.newContext({
-        viewport: options.viewport,
-        userAgent: options.userAgent ?? chromeUserAgent(browser.version()),
-      });
-    } catch (cause) {
-      throw new Dom2PdfError({
-        code: "BROWSER_FAILURE",
-        message: `Failed to create browser context${cause instanceof Error ? `: ${cause.message}` : ""}`,
-        cause,
-      });
+    let context: BrowserContext | null = null;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      if (attempt > 0) {
+        // The browser died between launch and context creation (crash or
+        // external kill — possibly before Playwright's `disconnected` event
+        // fired). Relaunch once so a dead process costs at most one
+        // conversion, never a series.
+        browser = await this.ensureBrowser();
+      }
+      try {
+        context = await browser.newContext({
+          viewport: options.viewport,
+          userAgent: options.userAgent ?? chromeUserAgent(browser.version()),
+        });
+        break;
+      } catch (cause) {
+        const dead = !browser.isConnected() && !this.closed;
+        if (attempt === 0 && dead) {
+          this.dropBrowser(browser);
+          continue;
+        }
+        throw new Dom2PdfError({
+          code: "BROWSER_FAILURE",
+          message: `Failed to create browser context${cause instanceof Error ? `: ${cause.message}` : ""}`,
+          cause,
+        });
+      }
+    }
+    if (context === null) {
+      // Unreachable: the loop either assigns a context or throws.
+      throw new Dom2PdfError({ code: "BROWSER_FAILURE", message: "Failed to create browser context" });
     }
 
     try {

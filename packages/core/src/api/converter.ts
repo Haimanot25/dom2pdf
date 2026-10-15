@@ -238,7 +238,24 @@ class ConverterImpl implements Converter {
               const warnings: QualityWarning[] = [];
               const checks: QualityCheck[] = [];
 
-              checks.push({ id: "readiness", status: "pass", detail: describeReadiness(readiness) });
+              checks.push(
+                readiness.networkUnsettled
+                  ? {
+                      id: "readiness",
+                      status: "warn",
+                      detail: describeReadiness(readiness),
+                      recommendation:
+                        "Capture proceeded without network quiet; raise readiness.timeoutMs if late script-rendered content matters, or set readiness.networkIdleMs: 0 to skip the wait",
+                    }
+                  : { id: "readiness", status: "pass", detail: describeReadiness(readiness) },
+              );
+              if (readiness.networkUnsettled) {
+                warnings.push({
+                  code: "readiness.network-unsettled",
+                  source: "observed",
+                  message: `The page never reached ${readiness.networkIdleMs}ms of network quiet — capture proceeded, so content rendered late by scripts may be missing (raise readiness.timeoutMs, or set readiness.networkIdleMs: 0 to skip the wait)`,
+                });
+              }
               const resources = resourceDiagnostics(tracker, readiness);
               checks.push(resources.check);
               warnings.push(...resources.warnings);
@@ -248,10 +265,16 @@ class ConverterImpl implements Converter {
                 warnings.push(...layoutWarnings(findings));
               }
 
-              readinessDeadline.throwIfExpired(
-                "READINESS_TIMEOUT",
-                `Readiness deadline (${normalized.readiness.timeoutMs}ms) elapsed before rendering started`,
-              );
+              // A deliberate `network-unsettled` conclusion may sit exactly on
+              // the deadline: readiness finished its essential checks and chose
+              // to warn rather than fail. Any other expiry is a genuine
+              // run-out of time before rendering.
+              if (!readiness.networkUnsettled) {
+                readinessDeadline.throwIfExpired(
+                  "READINESS_TIMEOUT",
+                  `Readiness deadline (${normalized.readiness.timeoutMs}ms) elapsed before rendering started`,
+                );
+              }
 
               const browserVersion = page.context().browser()?.version() ?? "unknown";
               const renderer = rendererFor(normalized.mode);
