@@ -3,6 +3,7 @@ import { Dom2PdfError } from "../errors/index.js";
 import { raceWithAbort } from "../utils/cancellation.js";
 import { Deadline } from "../utils/deadline.js";
 import { withTimeout } from "../utils/async.js";
+import { finishAnimations } from "./animations.js";
 import { buildPdfOptions } from "./pdf-options.js";
 import type { RenderContext, RenderResult, Renderer } from "./types.js";
 
@@ -39,6 +40,7 @@ export const screenRenderer: Renderer = {
     });
 
     try {
+      await finishAnimations(page);
       const bytes = await raceWithAbort(
         withTimeout(
           page.pdf(pdfOptions),

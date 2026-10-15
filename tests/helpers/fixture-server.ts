@@ -72,6 +72,18 @@ export async function startFixtureServer(rootDir: string = FIXTURES_DIR): Promis
           return;
         }
 
+        // Test-only feed chunk: /__chunk/<n> answers with an HTML fragment
+        // after a short delay, like a real infinite-scroll feed fetches its
+        // next page of content when the reader reaches the bottom.
+        const chunkMatch = /^\/__chunk\/(\d+)$/.exec(pathname);
+        if (chunkMatch !== null) {
+          const n = Number.parseInt(chunkMatch[1] ?? "0", 10) || 0;
+          await new Promise((resolve) => setTimeout(resolve, 250));
+          res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+          res.end(`<section id="s${n}">SCROLL-APPEND-${n}</section>`);
+          return;
+        }
+
         // Test-only fidelity fixtures: two documents that are byte-identical
         // except the sabotage variant adds `break-inside: avoid` to a tall
         // block that straddles the first page boundary. Print pagination must

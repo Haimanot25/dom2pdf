@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Reveal-on-scroll fixture</title>
+<style>
+  body { margin: 0; font-family: sans-serif; }
+  h1 { padding: 16px 24px; }
+  section { height: 85vh; padding: 24px; border-bottom: 1px solid #ccc; box-sizing: border-box; }
+  .pending { opacity: 0; transition: opacity 0.2s linear; }
+  .revealed { opacity: 1; }
+</style>
+</head>
+<body>
+  <!-- Mimics Wix/AOS/wow-style pages: sections occupy layout but stay at
+       opacity 0 until an IntersectionObserver "reveals" them on scroll.
+       Without a scroll sweep, a print-to-PDF capture renders them as
+       blank space. -->
+  <h1>Reveal-on-scroll fixture</h1>
+  <section id="r0">REVEAL-SECTION-0 visible-from-start</section>
+  <section id="r1" class="pending">REVEAL-SECTION-1</section>
+  <section id="r2" class="pending">REVEAL-SECTION-2</section>
+  <section id="r3" class="pending">REVEAL-SECTION-3</section>
+  <section id="r4" class="pending">REVEAL-SECTION-4</section>
+  <section id="r5" class="pending">REVEAL-SECTION-5</section>
+  <script>
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) entry.target.classList.add("revealed");
+      }
+    }, { threshold: 0.05 });
+    document.querySelectorAll(".pending").forEach((el) => observer.observe(el));
+  </script>
+</body>
+</html>

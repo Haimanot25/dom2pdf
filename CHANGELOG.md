@@ -147,3 +147,40 @@ First public alpha — the six-phase foundation, in order:
   output" section; `docs/api.md`/`docs/cli.md` cover the new options
   (`fidelity`, `diagnostics`, `deterministic`), report fields, checks, and
   warning codes.
+
+### Phase 9 — Scroll-driven content & settled captures
+- The lazy sweep (`readiness.lazyLoad`, default `true`) now walks **every
+  scrollable document**, not only pages that declare lazy markers, because
+  scroll drives three different lazy behaviors: `loading="lazy"`/`data-src`
+  markers, fetch-on-scroll feeds (infinite scroll), and reveal-on-scroll
+  animations (Wix/AOS/wow-style sections sitting at `opacity: 0` until an
+  IntersectionObserver fires — previously printed as blank space with no
+  warning at all; found on a live site the fidelity check had flagged).
+  Each step carries a calibrated dwell (200ms — throttled reveal handlers
+  are otherwise outrun and sections stay hidden permanently); short pages
+  still pay nothing.
+- Infinite scroll: at the bottom, the document height is re-checked after
+  the triggered burst settles — growth keeps the sweep walking into
+  appended content, bounded by the step cap and the deadline; hitting the
+  cap reports `resources.lazy-load-truncated` as before.
+- The `readiness` check detail now reports what the sweep did: step count,
+  how many large blocks became visible (before/after hidden counts), and
+  any large blocks still hidden afterwards (usually intentional decorative
+  layers — reported, never claimed to be a defect). One bounded reveal-tail
+  settle runs only on pages where the sweep actually revealed something.
+- Captures are taken **settled**: before `page.pdf()`, running CSS/WAAPI
+  animations and transitions are fast-forwarded to their end state and
+  paused. Chromium's `printToPDF` settles CSS transitions itself but prints
+  running Web Animations mid-flight — on reveal-heavy sites that clipped
+  text at the page edge (verified: markers print `CLIPPED` without the
+  freeze, `FULL` with it).
+- `inspectPdf(bytes, { extractText: true })` now returns the raw extracted
+  text per page (`text.pages`) next to the counts — included in
+  `dom2pdf inspect --json` and used for content assertions in tests.
+- New fixtures (`reveal-on-scroll`, `infinite-scroll`, `reveal-slide`, plus
+  a fixture-server `/__chunk/<n>` feed route) and
+  `tests/scroll-content.spec.ts`: both patterns convert with all content
+  present, a no-sweep control proves the reveal case depends on the sweep,
+  and static short pages are asserted to pay nothing. Validated end-to-end
+  against a live reveal-on-scroll site (text extraction and hidden-block
+  counts restored to the full-page baseline).

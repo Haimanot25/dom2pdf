@@ -2,7 +2,7 @@
 
 **dom2pdf** is an open-source HTML-to-PDF conversion engine built on Playwright's Chromium. It converts URLs, HTML strings, and explicitly-permitted local HTML files into PDFs that preserve website appearance as closely as the browser and the PDF format allow, keeping text selectable and searchable wherever possible.
 
-> **Status: pre-alpha (Phase 8 of 8 — complete; alpha publish pending).** This repository is under active construction. Both rendering modes work — `document` (print CSS) and `screen` (paper-fit output policy) — the readiness phase (including adaptive per-resource patience and lazy-load drain) plus structured quality checks/policies are in place, every conversion verifies its own output (render-fidelity comparison against the live page, failure forensics, optional byte-reproducible output), the `dom2pdf` CLI (`convert`, `inspect`, `benchmark`) and the local `dom2pdf-web` UI are usable, every conversion runs behind an enforced request policy with resource limits, CI runs the full gate, and the production Docker image keeps Chromium's sandbox on. See [Roadmap](#roadmap) — no feature is documented here before it works.
+> **Status: pre-alpha (Phase 9 of 9 — complete; alpha publish pending).** This repository is under active construction. Both rendering modes work — `document` (print CSS) and `screen` (paper-fit output policy) — the readiness phase (including adaptive per-resource patience and the scroll-driven content drain: lazy markers, infinite scroll, reveal-on-scroll) plus structured quality checks/policies are in place, every conversion verifies its own output (render-fidelity comparison against the live page, failure forensics, optional byte-reproducible output), the `dom2pdf` CLI (`convert`, `inspect`, `benchmark`) and the local `dom2pdf-web` UI are usable, every conversion runs behind an enforced request policy with resource limits, CI runs the full gate, and the production Docker image keeps Chromium's sandbox on. See [Roadmap](#roadmap) — no feature is documented here before it works.
 
 ## Quick start
 
@@ -49,9 +49,13 @@ try {
 
 Screen mode reports its measured fit (`screen.output-policy` check) plus heuristic warnings for horizontal overflow, fixed/sticky elements, and scroll containers.
 
+In both modes the capture is taken with CSS/Web-Animations animations settled at their end state, so a printout shows the finished page rather than a mid-animation frame.
+
 ### Readiness
 
 After navigation, every conversion waits (under the single `readiness.timeoutMs` deadline) for the page to actually settle. Defaults: fonts settled (`fonts: true`), all images finished (`images: true`), and 300ms without network activity (`networkIdleMs: 300`, `0` disables — required for long-polling pages, otherwise the phase fails with `READINESS_TIMEOUT` naming the stage instead of hanging).
+
+Scrollable documents are also walked first (bounded, `readiness.lazyLoad`, default `true`) so scroll-driven content is actually present in the capture: `loading="lazy"` markers, fetch-on-scroll feeds (infinite scroll), and reveal-on-scroll animations that keep sections at `opacity: 0` until an observer fires — the pattern that otherwise prints as blank space. The `readiness` check detail reports what the sweep did (steps taken, large blocks revealed, blocks still hidden).
 
 ```ts
 await converter.convert({
@@ -143,6 +147,7 @@ Requires Node.js ≥ 22.13 (24 LTS recommended) and pnpm.
 7. ✅ **Local web UI (`dom2pdf-web`)**: localhost-only URL→PDF form; the full security policy applies (loopback/private targets need explicit server flags; the UI cannot escalate).
 8. ✅ **Phase 7 — Adaptive readiness**: per-resource patience (`readiness.slowResourceMs`) so one hung asset cannot burn the shared deadline, and a bounded lazy-load drain (`readiness.lazyLoad`) so `loading="lazy"` content is actually fetched.
 9. ✅ **Phase 8 — Verified output**: render-fidelity verification (`report.fidelity`, honest skip rules), failure forensics (`error.details.diagnostics`, CLI `--diagnostics`, always-on in the web UI), and deterministic byte-reproducible output (`deterministic`, CLI `--deterministic`, content digest).
+10. ✅ **Phase 9 — Scroll-driven content**: the readiness sweep walks every scrollable document — `loading="lazy"` markers, infinite-scroll feeds, and reveal-on-scroll animations that would otherwise print as blank space — reporting what it revealed; captures are taken with animations fast-forwarded to their settled end state so reveal slides never clip text at the page edge.
 
 ## License
 

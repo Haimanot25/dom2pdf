@@ -13,7 +13,9 @@ import type { Deadline } from "../utils/deadline.js";
  * patience (measured from its real request start) and is reported as slow
  * instead of spending the whole shared deadline, so one hanging asset costs a
  * `resources.slow` warning rather than a `READINESS_TIMEOUT`. The lazy sweep
- * triggers scroll-loaded content up front. The shared deadline still bounds
+ * walks the document so scroll-driven content — lazy markers, infinite
+ * scroll, and reveal-on-scroll animations — is actually present before the
+ * capture. The shared deadline still bounds
  * everything; whichever stage gives out is named in the error.
  */
 
@@ -37,12 +39,32 @@ export interface ImageState {
 }
 
 export interface LazySweepState {
-  /** Whether the sweep ran (scrollable document with lazy markers). */
+  /**
+   * Whether the sweep ran. It runs for every scrollable document, because
+   * scroll drives three different lazy behaviors: `loading="lazy"` markers,
+   * fetch-on-scroll content (infinite scroll), and reveal-on-scroll animations
+   * (Wix/AOS/wow-style sections that sit at `opacity: 0` until an
+   * IntersectionObserver fires — otherwise they print as blank space).
+   */
   performed: boolean;
   /** Scroll steps performed. */
   steps: number;
-  /** The document kept growing (infinite scroll) until the step limit. */
+  /** The document kept appending content (infinite scroll) until the step limit. */
   truncated: boolean;
+  /**
+   * Large elements (at least 100px tall) that were invisible — computed
+   * opacity below 0.1 or `visibility: hidden` — when the sweep started.
+   */
+  hiddenBeforeSweep: number;
+  /**
+   * The same count after the sweep and its reveal-tail settle. When it is
+   * lower than `hiddenBeforeSweep`, scroll made previously hidden blocks
+   * visible — the reveal-on-scroll pattern this sweep exists to defeat.
+   * A residual count usually means intentional decorative layers; it is
+   * reported in the readiness detail so a blank-space mystery is visible
+   * without claiming it is always a defect.
+   */
+  hiddenAfterSweep: number;
 }
 
 export interface ReadinessResult {
@@ -211,6 +233,24 @@ async function resolveImages(
 const LAZY_MAX_STEPS = 30;
 const LAZY_STEP_IDLE_MS = 120;
 const LAZY_STEP_MAX_WAIT_MS = 2_500;
+// A short dwell after each scroll step. IntersectionObserver callbacks are
+// delivered on rendering steps after the scroll (the two requestAnimationFrame
+// waits cover that), but many reveal systems drive their triggers from
+// throttled scroll handlers (~100-250ms timers). Calibrated against a live
+// Wix site: at 80ms the throttled handlers coalesced steps and permanently
+// skipped sections (they stayed at opacity 0 in the PDF); at 200ms every
+// section revealed. The cost lands only on scrollable pages, one dwell per
+// viewport step, and `readiness.lazyLoad: false` opts out entirely.
+const LAZY_STEP_DWELL_MS = 200;
+// Reveals can land slightly after the sweep ends (a throttled handler fires
+// within a beat of the final scroll). One bounded tail wait after restoring
+// the scroll position lets those transitions apply the visible class before
+// we judge the page and capture it. Only paid when the sweep actually made
+// blocks visible — static pages never wait.
+const LAZY_REVEAL_TAIL_MS = 500;
+// Below this much deadline left, skip the post-sweep hidden-element count —
+// it is a diagnostic, never worth failing a page that is otherwise ready.
+const LAZY_HIDDEN_PROBE_MIN_MS = 200;
 
 /**
  * Resolves once the network has been quiet for `idleMs`, or `false` when the
@@ -234,17 +274,51 @@ async function waitForQuietWindow(
 }
 
 /**
+ * Counts large elements (at least 100px tall) that are invisible right now
+ * — computed opacity below 0.1 or `visibility: hidden`. Page-side code
+ * cannot share closures across `evaluate` calls, so this walk repeats the
+ * one in `drainLazyContent`'s pre-scan verbatim.
+ */
+async function countHiddenLarge(page: Page, deadline: Deadline): Promise<number> {
+  return withDeadline(
+    page.evaluate(() => {
+      let hidden = 0;
+      document.querySelectorAll("body *").forEach((el) => {
+        const rect = el.getBoundingClientRect();
+        if (rect.height < 100 || rect.width < 8) return;
+        const style = getComputedStyle(el);
+        if (parseFloat(style.opacity) < 0.1 || style.visibility === "hidden") hidden += 1;
+      });
+      return hidden;
+    }),
+    deadline,
+    "lazy-load",
+  );
+}
+
+/**
  * Lazy-load drain: a bounded scroll sweep that walks the document before the
- * other checks so `loading="lazy"` images/iframes and `data-src`-style markup
- * actually fetch. Without it, long pages print with blank images below the
- * fold — a failure mode every print-to-PDF engine ships silently today.
+ * other checks. Scrolling drives three different lazy behaviors, and the
+ * sweep handles all of them:
  *
- * Guard rails: it only runs for scrollable documents that declare lazy
- * markers (static pages pay nothing), each step waits at most
- * `LAZY_STEP_MAX_WAIT_MS` for the triggered burst, the sweep stops after
- * `LAZY_MAX_STEPS` (reporting `truncated` for infinite-scroll pages), the
- * request cap and the shared readiness deadline still apply, and the scroll
- * position is always restored.
+ * 1. `loading="lazy"` images/iframes and `data-src`-style markup fetch when
+ *    they approach the viewport.
+ * 2. Fetch-on-scroll content (infinite scroll): pages that append when the
+ *    bottom is reached. The sweep re-checks the document height at the bottom
+ *    after the triggered burst settles and keeps walking into appended
+ *    content.
+ * 3. Reveal-on-scroll animations (Wix/AOS/wow-style): sections that sit in
+ *    the layout at `opacity: 0` until an IntersectionObserver fires. Without
+ *    the sweep they print as blank space — a failure mode every headless
+ *    print pipeline ships silently today.
+ *
+ * Guard rails: it only runs for scrollable documents (short pages pay
+ * nothing; a long static page pays roughly one walk-step per viewport, a few
+ * hundred ms, and `readiness.lazyLoad: false` opts out entirely), each step
+ * waits at most `LAZY_STEP_MAX_WAIT_MS` for the triggered burst, the sweep
+ * stops after `LAZY_MAX_STEPS` (reporting `truncated` for pages that keep
+ * growing), the request cap and the shared readiness deadline still apply,
+ * and the scroll position is always restored.
  */
 async function drainLazyContent(
   page: Page,
@@ -252,24 +326,35 @@ async function drainLazyContent(
   deadline: Deadline,
   activity: NetworkActivity,
 ): Promise<LazySweepState> {
-  if (!options.lazyLoad) return { performed: false, steps: 0, truncated: false };
+  const idle: LazySweepState = {
+    performed: false,
+    steps: 0,
+    truncated: false,
+    hiddenBeforeSweep: 0,
+    hiddenAfterSweep: 0,
+  };
+  if (!options.lazyLoad) return idle;
 
-  const markers = await withDeadline(
+  // One evaluate: is this a scrollable document, and how much large content
+  // is invisible up front (the reveal-on-scroll baseline)? The count walks
+  // every element, so it merges into the scrollable check to stay a single
+  // round-trip.
+  const scan = await withDeadline(
     page.evaluate(() => {
       const root = document.scrollingElement ?? document.documentElement;
-      return {
-        scrollable: root.scrollHeight > window.innerHeight * 1.25,
-        lazyMarkers: document.querySelectorAll(
-          'img[loading="lazy"],iframe[loading="lazy"],[data-src],[data-srcset]',
-        ).length,
-      };
+      let hidden = 0;
+      document.querySelectorAll("body *").forEach((el) => {
+        const rect = el.getBoundingClientRect();
+        if (rect.height < 100 || rect.width < 8) return;
+        const style = getComputedStyle(el);
+        if (parseFloat(style.opacity) < 0.1 || style.visibility === "hidden") hidden += 1;
+      });
+      return { scrollable: root.scrollHeight > window.innerHeight * 1.25, hidden };
     }),
     deadline,
     "lazy-load",
   );
-  if (!markers.scrollable || markers.lazyMarkers === 0) {
-    return { performed: false, steps: 0, truncated: false };
-  }
+  if (!scan.scrollable) return idle;
 
   const startY = await page.evaluate(() => window.scrollY);
   let steps = 0;
@@ -281,40 +366,84 @@ async function drainLazyContent(
         truncated = true;
         break;
       }
-      const atBottom = await page.evaluate((fraction: number) => {
+      const step = await page.evaluate((fraction: number) => {
         const root = document.scrollingElement ?? document.documentElement;
-        const remaining = root.scrollHeight - (window.scrollY + window.innerHeight);
+        const heightBefore = root.scrollHeight;
+        const remaining = heightBefore - (window.scrollY + window.innerHeight);
         const stepPx = Math.max(24, Math.floor(window.innerHeight * fraction));
         // `behavior: "instant"` defeats pages with `scroll-behavior: smooth`,
         // which would otherwise animate and make each step race the next.
         window.scrollTo({ top: window.scrollY + stepPx, behavior: "instant" });
-        return remaining <= 4;
+        return { atBottom: remaining <= 4, heightBefore };
       }, 0.9);
       steps += 1;
       // IntersectionObserver callbacks and lazy-load triggers are delivered on
       // rendering steps after the scroll — without letting two frames pass,
       // a fast sweep can scroll past a section (and restore the position)
-      // before the page ever learns it was in view.
+      // before the page ever learns it was in view. The dwell additionally
+      // gives throttled scroll handlers (many reveal-on-scroll systems)
+      // wall-clock time to notice the new position.
       await page.evaluate(
         () =>
           new Promise<void>((resolve) => {
             requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
           }),
       );
-      if (atBottom) break;
+      await sleep(LAZY_STEP_DWELL_MS);
+      // Let the burst this step triggered (lazy images, fetch-on-scroll
+      // appends) settle before deciding what happened.
       await waitForQuietWindow(
         activity,
         LAZY_STEP_IDLE_MS,
         Math.min(LAZY_STEP_MAX_WAIT_MS, Math.max(1, deadline.remainingMs())),
         options.slowResourceMs,
       );
+      if (!step.atBottom) continue;
+      // At the bottom: fetch-on-scroll pages append *after* the scroll
+      // arrives, so re-check the document height once the network has
+      // settled. Growth means newly appended content below — keep walking
+      // into it. Pages that grow forever hit the step cap and report
+      // `truncated`; the shared deadline still bounds every wait.
+      const heightAfter = await page.evaluate(
+        () => (document.scrollingElement ?? document.documentElement).scrollHeight,
+      );
+      if (heightAfter > step.heightBefore + 4) continue;
+      break;
     }
   } finally {
     await page.evaluate((y) => window.scrollTo({ top: y, behavior: "instant" }), startY).catch(
       () => undefined,
     );
   }
-  return { performed: true, steps, truncated };
+
+  // Diagnostic only: how much large content is still invisible after the
+  // sweep? Usually intentional decorative layers, but when a reveal system
+  // resisted the sweep this is the number that explains blank PDF space.
+  // Skipped when the deadline is nearly spent — never fail a ready page
+  // over a hint.
+  let hiddenAfterSweep = 0;
+  if (deadline.remainingMs() >= LAZY_HIDDEN_PROBE_MIN_MS) {
+    hiddenAfterSweep = await countHiddenLarge(page, deadline);
+    // A drop below the baseline means the sweep triggered reveals; their
+    // handlers may still be settling (throttled scroll callbacks fire
+    // within a beat of the last scroll). One bounded tail wait lets those
+    // reveals land before the count — and before the capture that follows
+    // readiness. Pages where nothing was revealed never wait.
+    if (
+      hiddenAfterSweep < scan.hidden &&
+      deadline.remainingMs() >= LAZY_HIDDEN_PROBE_MIN_MS + LAZY_REVEAL_TAIL_MS
+    ) {
+      await sleep(LAZY_REVEAL_TAIL_MS);
+      hiddenAfterSweep = await countHiddenLarge(page, deadline);
+    }
+  }
+  return {
+    performed: true,
+    steps,
+    truncated,
+    hiddenBeforeSweep: scan.hidden,
+    hiddenAfterSweep,
+  };
 }
 
 /**
@@ -437,10 +566,16 @@ export async function waitForReadiness(
 export function describeReadiness(result: ReadinessResult): string {
   const parts: string[] = [];
   if (result.lazy.performed) {
+    const revealed = result.lazy.hiddenBeforeSweep - result.lazy.hiddenAfterSweep;
+    const revealPart = revealed > 0 ? `, ${revealed} large block(s) became visible` : "";
+    const hiddenPart =
+      result.lazy.hiddenAfterSweep > 0
+        ? `, ${result.lazy.hiddenAfterSweep} large element(s) still hidden`
+        : "";
     parts.push(
       result.lazy.truncated
-        ? `lazy sweep ${result.lazy.steps} steps (truncated)`
-        : `lazy sweep ${result.lazy.steps} steps`,
+        ? `lazy sweep ${result.lazy.steps} steps (truncated)${revealPart}${hiddenPart}`
+        : `lazy sweep ${result.lazy.steps} steps${revealPart}${hiddenPart}`,
     );
   }
   if (result.fontsAwaited) parts.push("fonts settled");

@@ -2,6 +2,7 @@ import { Dom2PdfError } from "../errors/index.js";
 import { raceWithAbort } from "../utils/cancellation.js";
 import { Deadline } from "../utils/deadline.js";
 import { withTimeout } from "../utils/async.js";
+import { finishAnimations } from "./animations.js";
 import { buildPdfOptions } from "./pdf-options.js";
 import type { RenderContext, RenderResult, Renderer } from "./types.js";
 
@@ -11,6 +12,8 @@ import type { RenderContext, RenderResult, Renderer } from "./types.js";
  * `page.pdf()` has no timeout parameter (verified against playwright@1.64.0),
  * so the render is raced against dom2pdf's own deadline; on timeout or
  * cancellation the surrounding context close aborts the in-flight CDP call.
+ * Animations are fast-forwarded to their settled end state first, so the
+ * capture shows the finished page rather than a mid-animation frame.
  */
 export const documentRenderer: Renderer = {
   mode: "document",
@@ -25,6 +28,7 @@ export const documentRenderer: Renderer = {
     logger.debug("Rendering PDF", { mode: "document", timeoutMs: options.render.timeoutMs });
 
     try {
+      await finishAnimations(page);
       const bytes = await raceWithAbort(
         withTimeout(
           page.pdf(pdfOptions),

@@ -86,7 +86,7 @@ what the readiness phase is for.
 | `waitForFonts` | `string[]` | `[]` | Wait for declared `@font-face` families; failures become `resources.font-unavailable` warnings |
 | `images` | boolean | `true` | Wait until every `<img>` finished (failed = finished; each image is given `slowResourceMs` individual patience) |
 | `slowResourceMs` | int, `0` disables | `10000` | Individual patience for a still-pending resource. Out-of-patience images (and other hung requests) no longer block; the conversion proceeds with a `resources.slow` warning naming them. `0` restores blocking until `timeoutMs` |
-| `lazyLoad` | boolean | `true` | Before the other checks, sweep-scroll scrollable documents that declare lazy markers (`loading="lazy"`, `data-src`, …) so scroll-loaded content is actually fetched. Bounded by step count, per-step quiet windows, the request cap, and the deadline; a sweep that hits the step limit reports `resources.lazy-load-truncated` |
+| `lazyLoad` | boolean | `true` | Before the other checks, sweep-scroll every scrollable document with bounded steps. Scroll drives three lazy behaviors and the sweep drives all of them: `loading="lazy"`/`data-src` markers, fetch-on-scroll feeds (the document height is re-checked at the bottom, so infinite-scroll content is walked in until growth stalls), and reveal-on-scroll animations (Wix/AOS-style sections that sit at `opacity: 0` until an observer fires — otherwise they print as blank space). Bounded by step count, per-step quiet windows, the request cap, and the deadline; a sweep that keeps growing until the step limit reports `resources.lazy-load-truncated`. Short pages pay nothing; the `readiness` check detail reports the sweep's steps, the large blocks it made visible, and any still hidden |
 | `networkIdleMs` | int, `0` disables | `300` | No network activity for this long; uses a tracker attached **before** navigation, so in-flight requests count. Requests older than `slowResourceMs` count as hung and do not block. Pages that keep *starting* requests (long polling) hit `READINESS_TIMEOUT` unless disabled |
 | `selector` | string | — | Wait until a CSS selector is **visible** |
 | `settleMs` | int | `0` | Extra quiet period after the other checks |
@@ -96,6 +96,12 @@ what the readiness phase is for.
 | Key | Type | Default |
 | --- | --- | --- |
 | `timeoutMs` | int | `30000` | Deadline for `page.pdf()` itself → `RENDER_TIMEOUT` |
+
+Before the PDF is printed, running CSS/Web-Animations animations and
+transitions are fast-forwarded to their settled end state and paused, so the
+capture shows the finished page — never a mid-animation frame. (Chromium's
+`printToPDF` prints running Web Animations mid-flight, which clips text at
+the page edge on reveal-heavy sites.)
 
 #### `quality` options (policies)
 
@@ -263,7 +269,7 @@ interface FidelityReport {
 | `id` | Present when | Notes |
 | --- | --- | --- |
 | `pdf-structure` | always | pdfjs parsed header + page tree |
-| `readiness` | always | What actually ran: fonts/images/network idle/selector/settle + duration |
+| `readiness` | always | What actually ran: the lazy sweep (steps taken, large blocks revealed, blocks still hidden) + fonts/images/network idle/selector/settle + duration |
 | `resources` | always | Failed requests, HTTP ≥ 400, broken images |
 | `pdf-text` | always | Extractable character count (weak signal: presence, not reading order) |
 | `pdf.determinism` | `deterministic: true` | Date spans zeroed in place plus the content digest; `warn` when a span could not be normalized |

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Infinite-scroll fixture</title>
+<style>
+  body { margin: 0; font-family: sans-serif; }
+  h1 { padding: 16px 24px; }
+  section { height: 70vh; padding: 24px; border-bottom: 1px solid #999; box-sizing: border-box; }
+</style>
+</head>
+<body>
+  <!-- Mimics fetch-on-scroll feeds: new sections are appended (after a
+       network fetch, like a real feed) whenever the reader reaches the
+       bottom. A single-pass capture stops at the original bottom and
+       misses every appended section. -->
+  <h1>Infinite-scroll fixture</h1>
+  <section id="s0">SCROLL-BASE-0</section>
+  <section id="s1">SCROLL-BASE-1</section>
+  <div id="feed"></div>
+  <script>
+    let appended = 0;
+    const MAX_APPENDS = 4;
+    function maybeAppend() {
+      if (appended >= MAX_APPENDS) return;
+      const root = document.scrollingElement || document.documentElement;
+      const nearBottom = root.scrollHeight - (window.scrollY + window.innerHeight) < 150;
+      if (!nearBottom) return;
+      appended += 1;
+      fetch("/__chunk/" + appended)
+        .then((response) => response.text())
+        .then((html) => {
+          document.getElementById("feed").insertAdjacentHTML("beforeend", html);
+        });
+    }
+    window.addEventListener("scroll", maybeAppend, { passive: true });
+  </script>
+</body>
+</html>

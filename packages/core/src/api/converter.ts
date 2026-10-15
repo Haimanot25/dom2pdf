@@ -107,7 +107,7 @@ function resourceDiagnostics(
     warnings.push({
       code: "resources.lazy-load-truncated",
       source: "heuristic",
-      message: `The lazy-load sweep reached its step limit (${readiness.lazy.steps} steps); content added by infinite scroll beyond that may be missing images`,
+      message: `The lazy-load sweep reached its step limit (${readiness.lazy.steps} steps); content added by infinite scroll beyond that may be missing`,
     });
   }
 

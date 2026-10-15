@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Reveal-slide fixture</title>
+<style>
+  body { margin: 0; font-family: sans-serif; }
+  h1 { padding: 16px 24px; }
+  section { height: 80vh; padding: 24px; box-sizing: border-box; border-bottom: 1px solid #ccc; overflow: hidden; }
+  .slide { width: 100%; background: #eef2ff; padding: 20px; box-sizing: border-box; }
+</style>
+</head>
+<body>
+  <!-- Reveal-and-slide driven by the Web Animations API: content sits off
+       the left edge and slides in over 8s when an IntersectionObserver
+       fires. Chromium's printToPDF settles CSS transitions on its own but
+       prints running WAAPI animations mid-flight — so a capture taken
+       before the animation ends clips the left part of each line at the
+       page edge, and only a capture taken at the settled end state shows
+       the full line. -->
+  <h1>Reveal-slide fixture</h1>
+  <section id="a"><div class="slide">SLIDE-MARKER-ALPHA-KEEPSAKE-FULLY-VISIBLE</div></section>
+  <section id="b"><div class="slide">SLIDE-MARKER-BRAVO-KEEPSAKE-FULLY-VISIBLE</div></section>
+  <section id="c"><div class="slide">SLIDE-MARKER-CHARLIE-KEEPSAKE-FULLY-VISIBLE</div></section>
+  <script>
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        entry.target.animate(
+          [
+            { transform: "translateX(-60%)", opacity: 0 },
+            { transform: "translateX(0)", opacity: 1 },
+          ],
+          { duration: 8000, easing: "ease-out", fill: "both" },
+        );
+        observer.unobserve(entry.target);
+      }
+    }, { threshold: 0.05 });
+    document.querySelectorAll(".slide").forEach((el) => observer.observe(el));
+  </script>
+</body>
+</html>

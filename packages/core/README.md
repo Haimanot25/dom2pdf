@@ -32,7 +32,9 @@ try {
 - **Readiness phase**: fonts, images, network quiet, a CSS selector, and a
   settle period under one deadline — failures name the stage instead of
   hanging. Adaptive per-resource patience stops one hung asset from burning
-  the shared deadline; lazy-loaded content is drained before capture.
+  the shared deadline; scroll-driven content (lazy markers, infinite scroll,
+  reveal-on-scroll animations) is drained before capture, and captures are
+  taken with animations settled at their end state.
 - **Structured quality report**: every check states measured facts; warnings
   are labeled `observed` (measured) or `heuristic` (estimated). Policies can
   reject output (`minPages`, `maxBytes`, `failOnWarnings`, …) with

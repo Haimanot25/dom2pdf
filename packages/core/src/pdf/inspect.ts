@@ -20,6 +20,12 @@ export interface PdfTextStats {
   perPageChars: number[];
   /** 1-based page numbers that contain no extractable text. */
   emptyPages: number[];
+  /**
+   * Raw extracted text per page, in page-tree order. A weak signal like the
+   * counts: it proves text presence, not reading order or fidelity — and
+   * text that was never painted (e.g. invisible elements) is not here.
+   */
+  pages: string[];
 }
 
 function readHeader(bytes: Uint8Array): string | null {
@@ -77,18 +83,21 @@ export async function inspectPdf(
       if (options.extractText === true) {
         const perPageChars: number[] = [];
         const emptyPages: number[] = [];
+        const pages: string[] = [];
         for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
           const page = await document.getPage(pageNumber);
           const content = await page.getTextContent();
           const text = content.items.map((item) => ("str" in item ? item.str : "")).join("");
           const chars = text.replace(/\s+/g, "").length;
           perPageChars.push(chars);
+          pages.push(text);
           if (chars === 0) emptyPages.push(pageNumber);
         }
         inspection.text = {
           totalChars: perPageChars.reduce((sum, count) => sum + count, 0),
           perPageChars,
           emptyPages,
+          pages,
         };
       }
       return inspection;
