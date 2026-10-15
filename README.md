@@ -55,7 +55,7 @@ In both modes the capture is taken with CSS/Web-Animations animations settled at
 
 After navigation, every conversion waits (under the single `readiness.timeoutMs` deadline) for the page to actually settle. Defaults: fonts settled (`fonts: true`), all images finished (`images: true`), and 300ms without network activity (`networkIdleMs: 300`, `0` disables — required for long-polling pages, otherwise the phase fails with `READINESS_TIMEOUT` naming the stage instead of hanging).
 
-Scrollable documents are also walked first (bounded, `readiness.lazyLoad`, default `true`) so scroll-driven content is actually present in the capture: `loading="lazy"` markers, fetch-on-scroll feeds (infinite scroll), and reveal-on-scroll animations that keep sections at `opacity: 0` until an observer fires — the pattern that otherwise prints as blank space. The `readiness` check detail reports what the sweep did (steps taken, large blocks revealed, blocks still hidden).
+Scrollable documents are also walked first (bounded, `readiness.lazyLoad`, default `true`) so scroll-driven content is actually present in the capture: `loading="lazy"` markers, fetch-on-scroll feeds (infinite scroll), and reveal-on-scroll animations that keep sections at `opacity: 0` until an observer fires — the pattern that otherwise prints as blank space. The sweep runs under its own time budget (it stops and reports `truncated` rather than spending the deadline the essential checks need — a slow sweep costs a warning, never a failed conversion), and the `readiness` check detail reports what it did (steps taken, large blocks revealed, blocks still hidden).
 
 ```ts
 await converter.convert({

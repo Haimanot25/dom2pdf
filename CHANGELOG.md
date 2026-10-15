@@ -163,6 +163,18 @@ First public alpha — the six-phase foundation, in order:
   the triggered burst settles — growth keeps the sweep walking into
   appended content, bounded by the step cap and the deadline; hitting the
   cap reports `resources.lazy-load-truncated` as before.
+- The sweep can no longer starve the readiness deadline (regression found
+  on a live site: per-step settle waits over ~18 steps consumed the whole
+  30s and failed the conversion at the `lazy-load` stage even though the
+  page settles in under 4s). It now runs under a **time budget** — at most
+  half of the deadline still remaining at sweep start, always leaving the
+  rest to the essential checks (fonts, images, network quiet) — mid-walk
+  settle waits are capped small (600ms; the bottom growth check keeps the
+  full 2.5s cap), and budget exhaustion stops the sweep with an honest
+  `truncated: time budget` detail and `resources.lazy-load-truncated`
+  warning instead of throwing. An already-expired deadline skips the sweep
+  so the stage that names the real bottleneck reports the advice that
+  applies.
 - The `readiness` check detail now reports what the sweep did: step count,
   how many large blocks became visible (before/after hidden counts), and
   any large blocks still hidden afterwards (usually intentional decorative

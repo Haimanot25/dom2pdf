@@ -104,10 +104,13 @@ function resourceDiagnostics(
     });
   }
   if (readiness.lazy.truncated) {
+    const timeBudget = readiness.lazy.truncationReason === "time-budget";
     warnings.push({
       code: "resources.lazy-load-truncated",
       source: "heuristic",
-      message: `The lazy-load sweep reached its step limit (${readiness.lazy.steps} steps); content added by infinite scroll beyond that may be missing`,
+      message: timeBudget
+        ? `The lazy-load sweep stopped at its time budget (${readiness.lazy.steps} steps) so the remaining readiness checks could keep the deadline's reserve; scroll-loaded content below the fold may be unrevealed — raise readiness.timeoutMs to sweep the whole page`
+        : `The lazy-load sweep reached its step limit (${readiness.lazy.steps} steps); content added by infinite scroll beyond that may be missing`,
     });
   }
 

@@ -8,7 +8,9 @@ import { startFixtureServer, type FixtureServer } from "./helpers/fixture-server
  * IntersectionObserver fires) and fetch-on-scroll feeds (infinite scroll).
  * The lazy sweep walks every scrollable document so both patterns are
  * present in the capture; these tests prove it on real fixtures, with a
- * no-sweep control to show what the sweep is responsible for.
+ * no-sweep control to show what the sweep is responsible for, plus the
+ * budget guard rail: a sweep that cannot finish in time must stop and
+ * report rather than spend the whole readiness deadline.
  */
 
 let server: FixtureServer;
@@ -75,7 +77,7 @@ test.describe("scroll-driven content", () => {
     }
     const readiness = result.report.checks.find((check) => check.id === "readiness");
     expect(readiness?.detail).toContain("lazy sweep");
-    expect(readiness?.detail).not.toContain("(truncated)");
+    expect(readiness?.detail).not.toContain("truncated");
     expect(
       result.report.warnings.some((warning) => warning.code === "resources.lazy-load-truncated"),
     ).toBe(false);
@@ -90,6 +92,39 @@ test.describe("scroll-driven content", () => {
     expect(result.report.checks.find((check) => check.id === "readiness")?.detail).not.toContain(
       "lazy sweep",
     );
+  });
+
+  test("an underfunded sweep stops at its time budget instead of eating the deadline", async () => {
+    // The fixture is 12+ viewports tall with 1.2s-delayed lazy images, under
+    // a short readiness deadline. Measured failure mode on a live site: the
+    // sweep's per-step settle waits consumed the entire deadline and failed
+    // the conversion at the lazy-load stage even though the page itself
+    // settles in seconds. With the budget the sweep stops (the 200ms dwell
+    // alone makes finishing within budget impossible on a page this tall),
+    // reports honestly, and the essential checks complete — the conversion
+    // succeeds where a deadline-spending sweep would throw.
+    const url = `${server.origin}/slow-settle.html`;
+    const result = await converter.convert({
+      input: { type: "url", url },
+      readiness: { timeoutMs: 5000 },
+      security: { allowLoopback: true },
+    });
+
+    const readiness = result.report.checks.find((check) => check.id === "readiness");
+    expect(readiness?.detail).toContain("lazy sweep");
+    expect(readiness?.detail).toContain("(truncated: time budget)");
+    const warning = result.report.warnings.find(
+      (warning) => warning.code === "resources.lazy-load-truncated",
+    );
+    expect(warning, "a budget stop must surface as a warning").toBeDefined();
+    expect(warning?.message).toContain("time budget");
+
+    // The page still converts with its content — the budget costs a warning,
+    // not the conversion and not the document's own text.
+    const text = await extractedText(result.bytes);
+    expect(text).toContain("SETTLE-HEADING");
+    expect(text).toContain("SETTLE-BASE-1");
+    expect(text).toContain("SETTLE-BASE-10");
   });
 
   test("slide-in reveals are captured settled, never mid-animation", async () => {

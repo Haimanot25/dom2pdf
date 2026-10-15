@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Slow-settle fixture</title>
+<style>
+  body { margin: 0; font-family: sans-serif; }
+  section { height: 75vh; padding: 16px; box-sizing: border-box; border-bottom: 1px solid #ccc; }
+  img { display: block; width: 80px; height: 80px; }
+</style>
+</head>
+<body>
+<h1>SETTLE-HEADING</h1>
+<!-- Tall page (12+ viewports) whose middle sections carry lazy images the
+     fixture server serves with a 1.2s delay, so every sweep step past them
+     costs real settle time. Under the short readiness.deadline the test
+     uses, a sweep without a time budget would burn the whole deadline and
+     fail the conversion at the lazy-load stage even though the page settles
+     fine; with the budget it stops, reports `truncated: time budget`, and
+     the essential checks still finish. The two images sit at ~3.8k/4.4k px
+     (sections 6 and 8) — the budget stop at step ~8-9 is past them, so both
+     are always triggered and never linger un-fetched in the images stage. -->
+<section id="s1">SETTLE-BASE-1</section>
+<section id="s2">SETTLE-BASE-2</section>
+<section id="s3">SETTLE-BASE-3</section>
+<section id="s4">SETTLE-BASE-4</section>
+<section id="s5">SETTLE-BASE-5</section>
+<section id="s6">SETTLE-BASE-6<img loading="lazy" src="/__delay/1200/settle-6.png" alt="lazy 6"></section>
+<section id="s7">SETTLE-BASE-7</section>
+<section id="s8">SETTLE-BASE-8<img loading="lazy" src="/__delay/1200/settle-8.png" alt="lazy 8"></section>
+<section id="s9">SETTLE-BASE-9</section>
+<section id="s10">SETTLE-BASE-10</section>
+<section id="s11">SETTLE-BASE-11</section>
+<section id="s12">SETTLE-BASE-12</section>
+<section id="s13">SETTLE-BASE-13</section>
+<section id="s14">SETTLE-BASE-14</section>
+<section id="s15">SETTLE-BASE-15</section>
+<section id="s16">SETTLE-BASE-16</section>
+<section id="s17">SETTLE-BASE-17</section>
+</body>
+</html>

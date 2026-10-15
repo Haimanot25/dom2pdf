@@ -34,6 +34,7 @@ describe("describeReadiness", () => {
     performed: false,
     steps: 0,
     truncated: false,
+    truncationReason: null,
     hiddenBeforeSweep: 0,
     hiddenAfterSweep: 0,
   };
@@ -50,6 +51,7 @@ describe("describeReadiness", () => {
         performed: true,
         steps: 7,
         truncated: false,
+        truncationReason: null,
         hiddenBeforeSweep: 16,
         hiddenAfterSweep: 1,
       }),
@@ -59,20 +61,37 @@ describe("describeReadiness", () => {
     );
   });
 
-  it("marks a truncated sweep and keeps the residual count", () => {
+  it("marks a step-limit truncation and keeps the residual count", () => {
     const detail = describeReadiness(
       result({
         performed: true,
         steps: 30,
         truncated: true,
+        truncationReason: "step-limit",
         hiddenBeforeSweep: 4,
         hiddenAfterSweep: 4,
       }),
     );
     expect(detail).toContain(
-      "lazy sweep 30 steps (truncated), 4 large element(s) still hidden",
+      "lazy sweep 30 steps (truncated: step limit), 4 large element(s) still hidden",
     );
     expect(detail).not.toContain("became visible");
+  });
+
+  it("names a time-budget truncation so the reservation is visible", () => {
+    const detail = describeReadiness(
+      result({
+        performed: true,
+        steps: 4,
+        truncated: true,
+        truncationReason: "time-budget",
+        hiddenBeforeSweep: 9,
+        hiddenAfterSweep: 3,
+      }),
+    );
+    expect(detail).toContain(
+      "lazy sweep 4 steps (truncated: time budget), 6 large block(s) became visible",
+    );
   });
 
   it("stays plain when the sweep revealed nothing and left nothing hidden", () => {
@@ -81,6 +100,7 @@ describe("describeReadiness", () => {
         performed: true,
         steps: 5,
         truncated: false,
+        truncationReason: null,
         hiddenBeforeSweep: 0,
         hiddenAfterSweep: 0,
       }),

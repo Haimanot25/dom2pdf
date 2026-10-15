@@ -15,8 +15,11 @@ import type { Deadline } from "../utils/deadline.js";
  * `resources.slow` warning rather than a `READINESS_TIMEOUT`. The lazy sweep
  * walks the document so scroll-driven content — lazy markers, infinite
  * scroll, and reveal-on-scroll animations — is actually present before the
- * capture. The shared deadline still bounds
- * everything; whichever stage gives out is named in the error.
+ * capture. The sweep is enrichment under a bounded budget: it stops and
+ * reports `truncated` rather than spending the deadline the essential checks
+ * (fonts, images, network quiet) still need, so it never fails a conversion.
+ * The shared deadline still bounds everything; whichever essential stage
+ * gives out is named in the error.
  */
 
 export interface ImageState {
@@ -51,6 +54,14 @@ export interface LazySweepState {
   steps: number;
   /** The document kept appending content (infinite scroll) until the step limit. */
   truncated: boolean;
+  /**
+   * What stopped a truncated sweep: `step-limit` (pages that keep growing)
+   * or `time-budget` (the sweep spent its bounded share of the readiness
+   * deadline — it stops so the essential checks after it — fonts, images,
+   * network quiet — still get the rest, instead of failing the conversion
+   * at this stage). `null` when the sweep ran to completion.
+   */
+  truncationReason: "step-limit" | "time-budget" | null;
   /**
    * Large elements (at least 100px tall) that were invisible — computed
    * opacity below 0.1 or `visibility: hidden` — when the sweep started.
@@ -242,6 +253,22 @@ const LAZY_STEP_MAX_WAIT_MS = 2_500;
 // section revealed. The cost lands only on scrollable pages, one dwell per
 // viewport step, and `readiness.lazyLoad: false` opts out entirely.
 const LAZY_STEP_DWELL_MS = 200;
+// Mid-walk settle allowance. The triggered burst does not have to *finish*
+// here — the images/network stages after the sweep own final settling — it
+// only has to get the next step a stable document. Kept small because these
+// waits multiply: measured on a live site, a full 2.5s-cap wait per step
+// over ~18 steps consumed the entire 30s readiness deadline and failed the
+// conversion at the lazy-load stage even though the page itself settles in
+// under 4s. The bottom-settle (growth check) still gets the full cap —
+// fetch-on-scroll appends must land before the height is re-read.
+const LAZY_STEP_SETTLE_MS = 600;
+// The sweep is enrichment, not a gate: it may spend at most this fraction
+// of the readiness deadline still remaining when it starts, and never more
+// than `remaining - LAZY_SWEEP_MIN_RESERVE_MS` — the essential checks that
+// follow always keep at least the reserve. Out of budget, the sweep stops
+// honestly (truncated, `time-budget`) instead of throwing.
+const LAZY_SWEEP_BUDGET_FRACTION = 0.5;
+const LAZY_SWEEP_MIN_RESERVE_MS = 1_500;
 // Reveals can land slightly after the sweep ends (a throttled handler fires
 // within a beat of the final scroll). One bounded tail wait after restoring
 // the scroll position lets those transitions apply the visible class before
@@ -313,12 +340,16 @@ async function countHiddenLarge(page: Page, deadline: Deadline): Promise<number>
  *    print pipeline ships silently today.
  *
  * Guard rails: it only runs for scrollable documents (short pages pay
- * nothing; a long static page pays roughly one walk-step per viewport, a few
- * hundred ms, and `readiness.lazyLoad: false` opts out entirely), each step
- * waits at most `LAZY_STEP_MAX_WAIT_MS` for the triggered burst, the sweep
- * stops after `LAZY_MAX_STEPS` (reporting `truncated` for pages that keep
- * growing), the request cap and the shared readiness deadline still apply,
- * and the scroll position is always restored.
+ * nothing; a long static page pays roughly one walk-step per viewport, a
+ * few hundred ms, and `readiness.lazyLoad: false` opts out entirely), each
+ * mid-walk step settles at most `LAZY_STEP_SETTLE_MS` (the bottom growth
+ * check gets `LAZY_STEP_MAX_WAIT_MS`), the sweep stops after `LAZY_MAX_STEPS`
+ * (reporting `truncated`/`step-limit` for pages that keep growing) **and**
+ * after spending its bounded share of the readiness deadline (reporting
+ * `truncated`/`time-budget` so the essential checks after it still get the
+ * reserve — a slow sweep costs a warning, never a conversion failure), the
+ * request cap and the shared deadline still bound every wait, and the scroll
+ * position is always restored.
  */
 async function drainLazyContent(
   page: Page,
@@ -330,10 +361,14 @@ async function drainLazyContent(
     performed: false,
     steps: 0,
     truncated: false,
+    truncationReason: null,
     hiddenBeforeSweep: 0,
     hiddenAfterSweep: 0,
   };
-  if (!options.lazyLoad) return idle;
+  // An already-expired deadline skips the sweep rather than failing here:
+  // the sweep is enrichment, so a later stage should name the real
+  // bottleneck (and the advice to raise `timeoutMs` actually applies).
+  if (!options.lazyLoad || deadline.expired) return idle;
 
   // One evaluate: is this a scrollable document, and how much large content
   // is invisible up front (the reveal-on-scroll baseline)? The count walks
@@ -356,14 +391,41 @@ async function drainLazyContent(
   );
   if (!scan.scrollable) return idle;
 
+  // Budget: the sweep may spend at most this share of the readiness
+  // deadline still on the clock, and never past the reserve — the checks
+  // after it (fonts, images, network quiet) always keep
+  // `LAZY_SWEEP_MIN_RESERVE_MS`. Measured on a live site: without this,
+  // per-step settle waits over ~18 steps consumed the whole 30s deadline
+  // and failed the conversion at this stage even though the page itself
+  // settles in under 4s. Below a usable budget the sweep does not run at
+  // all; a later stage then reports the true state of the page.
+  const remainingAtStart = deadline.remainingMs();
+  const budgetMs = Math.min(
+    Math.floor(remainingAtStart * LAZY_SWEEP_BUDGET_FRACTION),
+    remainingAtStart - LAZY_SWEEP_MIN_RESERVE_MS,
+  );
+  if (budgetMs <= 0) return idle;
+  const sweepStartedAt = Date.now();
+  const settleBudgetMs = (): number =>
+    Math.max(1, Math.min(budgetMs - (Date.now() - sweepStartedAt), deadline.remainingMs()));
+
   const startY = await page.evaluate(() => window.scrollY);
   let steps = 0;
   let truncated = false;
+  let truncationReason: "step-limit" | "time-budget" | null = null;
   try {
     for (;;) {
-      if (deadline.expired) throw readinessTimeout("lazy-load", deadline);
+      // Out of budget (or the hard deadline arrived anyway): stop and
+      // report. The sweep never fails a conversion — the reserve lets the
+      // essential checks complete, so a slow sweep costs a warning.
+      if (Date.now() - sweepStartedAt >= budgetMs || deadline.expired) {
+        truncated = true;
+        truncationReason = "time-budget";
+        break;
+      }
       if (steps >= LAZY_MAX_STEPS) {
         truncated = true;
+        truncationReason = "step-limit";
         break;
       }
       const step = await page.evaluate((fraction: number) => {
@@ -390,25 +452,36 @@ async function drainLazyContent(
           }),
       );
       await sleep(LAZY_STEP_DWELL_MS);
-      // Let the burst this step triggered (lazy images, fetch-on-scroll
-      // appends) settle before deciding what happened.
+      if (step.atBottom) {
+        // At the bottom, fetch-on-scroll pages append *after* the scroll
+        // arrives: this settle gets the full cap (budget/deadline-capped)
+        // so the triggered append lands before the height re-check. Growth
+        // means newly appended content below — keep walking into it; pages
+        // that grow forever hit the step cap, and an exhausted budget stops
+        // with `truncated`/`time-budget`.
+        await waitForQuietWindow(
+          activity,
+          LAZY_STEP_IDLE_MS,
+          Math.min(LAZY_STEP_MAX_WAIT_MS, settleBudgetMs()),
+          options.slowResourceMs,
+        );
+        const heightAfter = await page.evaluate(
+          () => (document.scrollingElement ?? document.documentElement).scrollHeight,
+        );
+        if (heightAfter > step.heightBefore + 4) continue;
+        break;
+      }
+      // Mid-walk: give the burst this step triggered a short settle so the
+      // next step walks a stable document. It does not have to finish here —
+      // the images/network stages after the sweep own final settling — and
+      // this small fixed cap is what keeps a page with trickling requests
+      // from spending the shared deadline in these waits.
       await waitForQuietWindow(
         activity,
         LAZY_STEP_IDLE_MS,
-        Math.min(LAZY_STEP_MAX_WAIT_MS, Math.max(1, deadline.remainingMs())),
+        Math.min(LAZY_STEP_SETTLE_MS, settleBudgetMs()),
         options.slowResourceMs,
       );
-      if (!step.atBottom) continue;
-      // At the bottom: fetch-on-scroll pages append *after* the scroll
-      // arrives, so re-check the document height once the network has
-      // settled. Growth means newly appended content below — keep walking
-      // into it. Pages that grow forever hit the step cap and report
-      // `truncated`; the shared deadline still bounds every wait.
-      const heightAfter = await page.evaluate(
-        () => (document.scrollingElement ?? document.documentElement).scrollHeight,
-      );
-      if (heightAfter > step.heightBefore + 4) continue;
-      break;
     }
   } finally {
     await page.evaluate((y) => window.scrollTo({ top: y, behavior: "instant" }), startY).catch(
@@ -441,6 +514,7 @@ async function drainLazyContent(
     performed: true,
     steps,
     truncated,
+    truncationReason,
     hiddenBeforeSweep: scan.hidden,
     hiddenAfterSweep,
   };
@@ -574,7 +648,9 @@ export function describeReadiness(result: ReadinessResult): string {
         : "";
     parts.push(
       result.lazy.truncated
-        ? `lazy sweep ${result.lazy.steps} steps (truncated)${revealPart}${hiddenPart}`
+        ? `lazy sweep ${result.lazy.steps} steps (truncated: ${
+            result.lazy.truncationReason === "time-budget" ? "time budget" : "step limit"
+          })${revealPart}${hiddenPart}`
         : `lazy sweep ${result.lazy.steps} steps${revealPart}${hiddenPart}`,
     );
   }
