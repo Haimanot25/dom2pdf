@@ -1,0 +1,5 @@
+/* External styles for the CSP fixture (meta CSP allows 'self' only). */
+body { margin: 0; }
+.spacer { height: 1050px; }
+table { border-collapse: collapse; width: 640px; }
+td { height: 50px; border: 1px solid #444; font: 14px monospace; }

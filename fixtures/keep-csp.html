@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Strict CSP: inline <style>, style attributes, and addStyleTag are all
+     refused; only same-origin external stylesheets load. The keep-together
+     pass must still work via constructed stylesheets. -->
+<meta http-equiv="Content-Security-Policy" content="style-src 'self'">
+<link rel="stylesheet" href="keep-csp.css">
+<title>keep-together CSP fixture</title>
+</head>
+<body>
+<div class="spacer">SPACER</div>
+<table>
+  <tr><td>ROW1-START cell 1 ROW1-END</td></tr>
+  <tr><td>ROW2-START cell 2 ROW2-END</td></tr>
+  <tr><td>ROW3-START cell 3 ROW3-END</td></tr>
+  <tr><td>ROW4-START cell 4 ROW4-END</td></tr>
+  <tr><td>ROW5-START cell 5 ROW5-END</td></tr>
+  <tr><td>ROW6-START cell 6 ROW6-END</td></tr>
+</table>
+</body>
+</html>

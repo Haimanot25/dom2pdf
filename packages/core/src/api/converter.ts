@@ -300,7 +300,7 @@ class ConverterImpl implements Converter {
                     ? {
                         id: "render.pagination",
                         status: "pass",
-                        detail: `keep-together: ${pagination.marked} object(s) kept to one page (page budget ${Math.round(pagination.pageBudgetCssPx)}px), ${pagination.headerTables} table header(s) set to repeat${pagination.skippedTooTall > 0 ? `, ${pagination.skippedTooTall} object(s) too tall to keep` : ""}`,
+                        detail: `keep-together: ${pagination.marked} object(s) kept to one page (page budget ${Math.round(pagination.pageBudgetCssPx)}px), ${pagination.headerTables} table header(s) set to repeat${pagination.skippedTooTall > 0 ? `, ${pagination.skippedTooTall} object(s) too tall to keep` : ""}${pagination.shadowRoots > 0 ? `, ${pagination.shadowRoots} shadow root(s) covered` : ""}`,
                       }
                     : {
                         id: "render.pagination",

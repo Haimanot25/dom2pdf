@@ -271,6 +271,17 @@ default, byte for byte.
 - New `render.pagination` check (counts kept/repeated/too-tall plus the page
   budget; `skipped` with the reason when the pre-pass could not run —
   enrichment, never a conversion failure).
+- **CSP-safe injection** (found by a real-site validation run): the
+  stylesheet is installed as a constructed stylesheet on
+  `document.adoptedStyleSheets`, which strict `style-src` policies without
+  `unsafe-inline` (e.g. gov.uk) do not block — the earlier `addStyleTag`
+  path was refused there and the check honestly reported `skipped`.
+- **Shadow DOM + iframe coverage** (same validation run, against MDN):
+  candidates are also collected from open shadow roots, with the stylesheet
+  adopted per root (a document sheet never crosses the shadow boundary), and
+  a page-fitting iframe is kept whole as a box (Chromium honors the rule on
+  it — probe-verified). Closed shadow roots and iframe interiors are not
+  scanned — documented in `docs/api.md`.
 - Docs note the fidelity interaction honestly: kept objects change per-page
   composition versus the unpaginated screenshot, so those pages can score
   lower.

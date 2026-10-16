@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { createConverter, type Converter } from "../packages/core/dist/index.js";
 import { extractPdfText } from "./helpers/pdf-text.js";
+import { startFixtureServer, type FixtureServer } from "./helpers/fixture-server.js";
 
 /**
  * Object-aware pagination (`pagination.keepTogether`).
@@ -15,13 +16,16 @@ import { extractPdfText } from "./helpers/pdf-text.js";
  */
 
 let converter: Converter;
+let server: FixtureServer;
 
 test.beforeAll(async () => {
   converter = await createConverter();
+  server = await startFixtureServer();
 });
 
 test.afterAll(async () => {
   await converter?.close();
+  await server?.close();
 });
 
 function rowMarkers(rowCount: number): string {
@@ -214,6 +218,85 @@ test.describe("object-aware pagination (pagination.keepTogether)", () => {
     const tableStart = pages.findIndex((page) => page.includes("ROW1-START"));
     expect(tableStart).toBeGreaterThan(0);
     expect(pages[tableStart]).toContain("ROW6-END");
+  });
+
+  test("works on pages with a strict style-src CSP (constructed stylesheets, not addStyleTag)", async () => {
+    // gov.uk ships `style-src 'self' …`: inline <style>, style attributes,
+    // and addStyleTag are all refused; only same-origin external CSS loads.
+    // The fixture keeps all its styling in an external stylesheet.
+    const result = await converter.convert({
+      input: { type: "url", url: `${server.origin}/keep-csp.html` },
+      security: { allowLoopback: true },
+      pagination: keepTogether,
+    });
+
+    const check = result.report.checks.find((entry) => entry.id === "render.pagination");
+    expect(check?.status).toBe("pass");
+    expect(check?.detail).toContain("1 object(s) kept to one page");
+
+    const pages = await extractPdfText(result.bytes);
+    expect(pages[0]).toContain("SPACER");
+    expect(pages[0]).not.toContain("ROW1-START");
+    const tableStart = pages.findIndex((page) => page.includes("ROW1-START"));
+    expect(tableStart).toBe(1);
+    expect(pages[tableStart]).toContain("ROW6-END");
+  });
+
+  test("keeps objects inside open shadow roots (MDN-style code examples)", async () => {
+    // The code example lives in <mdn-code-example>'s shadow root in the real
+    // world; document.querySelectorAll never sees it, and document-level
+    // sheets do not style it — the pass must walk open shadow roots and adopt
+    // its constructed stylesheet per root.
+    const shadowFixture = `<!doctype html><html><head><meta charset="utf-8"><style>
+  body { margin: 0; }
+</style></head><body>
+<div style="height:1050px">SPACER</div>
+<div id="host"></div>
+<script>
+  const shadow = document.getElementById("host").attachShadow({ mode: "open" });
+  shadow.innerHTML =
+    "<pre id=\\"code\\" style=\\"font:14px monospace;margin:0;background:#f4f4f4;white-space:pre-wrap\\">" +
+    "SHADOW-CODE-START " + "shadow code line that keeps going. ".repeat(14) + " SHADOW-CODE-END</pre>";
+</script>
+</body></html>`;
+
+    const result = await converter.convert({ input: htmlInput(shadowFixture), pagination: keepTogether });
+
+    const check = result.report.checks.find((entry) => entry.id === "render.pagination");
+    expect(check?.status).toBe("pass");
+    expect(check?.detail).toContain("1 object(s) kept to one page");
+    expect(check?.detail).toContain("1 shadow root(s) covered");
+
+    const pages = await extractPdfText(result.bytes);
+    expect(pages[0]).toContain("SPACER");
+    expect(pages[0]).not.toContain("SHADOW-CODE-START");
+    const codeStart = pages.findIndex((page) => page.includes("SHADOW-CODE-START"));
+    expect(codeStart).toBe(1);
+    expect(pages[codeStart]).toContain("SHADOW-CODE-END");
+  });
+
+  test("keeps a straddling iframe whole (the box is the unit of keeping)", async () => {
+    // Chromium honors break-inside: avoid on the iframe box in the parent
+    // document (probe-verified); inner frames are not individually scanned.
+    const iframeFixture = `<!doctype html><html><head><meta charset="utf-8"><style>
+  body { margin: 0; }
+  iframe { border: 0; display: block; }
+</style></head><body>
+<div style="height:1050px">SPACER</div>
+<iframe style="width:794px;height:400px" srcdoc="<!doctype html><body style='margin:0'><div style='height:300px;font:14px monospace;background:#eef'>IFRAME-BOX-TOP inner content that runs across the page boundary IFRAME-BOX-BOTTOM</div>"></iframe>
+</body></html>`;
+
+    const result = await converter.convert({ input: htmlInput(iframeFixture), pagination: keepTogether });
+
+    const check = result.report.checks.find((entry) => entry.id === "render.pagination");
+    expect(check?.status).toBe("pass");
+    expect(check?.detail).toContain("1 object(s) kept to one page");
+
+    const pages = await extractPdfText(result.bytes);
+    expect(pages[0]).toContain("SPACER");
+    expect(pages[0]).not.toContain("IFRAME-BOX-TOP");
+    expect(pages[1]).toContain("IFRAME-BOX-TOP");
+    expect(pages[1]).toContain("IFRAME-BOX-BOTTOM");
   });
 
   test("reports skipped (and changes nothing) when preferCSSPageSize defers the paper to @page", async () => {

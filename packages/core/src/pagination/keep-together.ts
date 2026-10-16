@@ -11,8 +11,15 @@ import type { Logger } from "../utils/logger.js";
  * on one page:
  *
  * - Marked blocks get `break-inside: avoid`: page-fitting tables, figures,
- *   images, videos, code blocks, and standalone SVGs never straddle a page
- *   break (verified against this Chromium build).
+ *   images, videos, code blocks, standalone SVGs, and iframe boxes never
+ *   straddle a page break (verified against this Chromium build — including
+ *   the iframe box, whose inner document is kept together with it).
+ * - Candidates are collected from the document **and every open shadow root**
+ *   (the constructed stylesheet is adopted per root — a document-level sheet
+ *   does not cross the shadow boundary). Sites like MDN render their code
+ *   examples inside `<mdn-code-example>` shadow roots, invisible to
+ *   `document.querySelectorAll`. Closed shadow roots are not reachable from
+ *   page script and are not scanned.
  * - Every table row gets `break-inside: avoid`, so a row whose box would
  *   cross a page edge is pushed whole instead of being clipped there. Rows
  *   taller than a page still break — forced breaks override avoidance.
@@ -36,11 +43,19 @@ import type { Logger } from "../utils/logger.js";
  * measurement and restored immediately after; in the common case the live
  * size already matches and no resize happens.
  *
+ * The stylesheet is installed as a constructed stylesheet on
+ * `document.adoptedStyleSheets`, which — unlike `addStyleTag`/inline
+ * `<style>`, both blocked by `style-src` without `unsafe-inline` — is not
+ * subject to CSP inline-style restrictions (verified against gov.uk's
+ * strict `style-src 'self'` policy, where the previous injection method was
+ * refused and the pass honestly reported `skipped`).
+ *
  * Failure to apply is an enrichment loss, never a conversion failure: the
  * verdict comes back as `applied: false` with the reason (reported as a
- * `render.pagination` check with status `skipped`). Attribute marking is
- * inert without the stylesheet, so the CSS is injected last — a failure
- * before that point leaves the document completely untouched.
+ * `render.pagination` check with status `skipped`). The stylesheet is
+ * installed before any marking, so a failure inside the pass leaves at worst
+ * the structural row rules active with nothing marked — and a failure before
+ * the pass touches nothing at all.
  */
 
 export type PaginationHintsResult =
@@ -52,6 +67,8 @@ export type PaginationHintsResult =
       skippedTooTall: number;
       /** Tables whose overridden `<thead>` group was restored so it repeats. */
       headerTables: number;
+      /** Open shadow roots that received the stylesheet (their content cannot see the document's sheets). */
+      shadowRoots: number;
       /** One page's content height in unscaled CSS px — the height budget the marking used. */
       pageBudgetCssPx: number;
     }
@@ -71,81 +88,139 @@ export interface PaginationPrepassInput {
   logger: Logger;
 }
 
-/** Attribute marking objects that must stay on one page. */
-const KEEP_ATTR = "data-dom2pdf-keep";
-/** Attribute marking tables whose overridden thead group must repeat. */
-const REPEAT_ATTR = "data-dom2pdf-repeat-header";
 /** Slack (5% of the page budget) absorbing sub-pixel drift between measurement and print layout. */
 const KEEP_THRESHOLD_FACTOR = 0.95;
-
-const PAGINATION_CSS = `
-[${KEEP_ATTR}] { break-inside: avoid; page-break-inside: avoid; }
-tr { break-inside: avoid; page-break-inside: avoid; }
-[${REPEAT_ATTR}] > thead { display: table-header-group; }
-`;
 
 interface MarkCounts {
   marked: number;
   skippedTooTall: number;
   headerTables: number;
+  shadowRoots: number;
 }
 
 /**
  * Runs inside the page (`page.evaluate`) — must stay fully self-contained:
  * Playwright serializes the function source, so it may not close over any
- * module scope (attribute names are spelled out as literals).
+ * module scope (attribute names and the stylesheet are spelled out as
+ * literals).
+ *
+ * The stylesheet is installed first — one constructed stylesheet adopted on
+ * `document` and on every open shadow root that needs it (shadow trees can't
+ * see document sheets) — as a constructed stylesheet: CSP `style-src` without
+ * `unsafe-inline` blocks `addStyleTag`/inline `<style>`, but not constructed
+ * sheets (verified against gov.uk). Root collection is read-only, so if the
+ * install fails, the whole pass fails before touching the document.
  *
  * Runs after `emulateMedia` has selected the conversion's media and, in
  * document mode, after the transient resize to the print layout width, so
  * the rectangles it measures are the ones print pagination will see.
  */
-function markKeepCandidates(thresholdCssPx: number): MarkCounts {
+function applyKeepHints(thresholdCssPx: number): MarkCounts {
+  // ---- 1. Collect roots: the document plus every open shadow root ---------
+  // (a document-level sheet never styles shadow content; roots are collected
+  // before anything is installed, so a failure below still touches nothing).
+  const roots: Array<{ root: Document | ShadowRoot; candidates: Element[] }> = [];
+  const seen = new Set<Document | ShadowRoot>();
+  const collect = (root: Document | ShadowRoot): void => {
+    if (seen.has(root)) return;
+    seen.add(root);
+    const candidates = Array.from(
+      root.querySelectorAll("table, figure, img, video, pre, svg, iframe"),
+    );
+    // Shadow roots without candidates or rows still get walked for nested
+    // roots, but need no stylesheet of their own.
+    if (root === document || candidates.length > 0 || root.querySelectorAll("tr").length > 0) {
+      roots.push({ root, candidates });
+    }
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+    for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+      if (node instanceof Element && node.shadowRoot !== null) collect(node.shadowRoot);
+    }
+  };
+  collect(document);
+
+  // ---- 2. Install one constructed stylesheet in every collected root ------
+  const sheet = new CSSStyleSheet();
+  sheet.replaceSync(`
+[data-dom2pdf-keep] { break-inside: avoid; page-break-inside: avoid; }
+tr { break-inside: avoid; page-break-inside: avoid; }
+[data-dom2pdf-repeat-header] > thead { display: table-header-group; }
+`);
+  let shadowRoots = 0;
+  for (const entry of roots) {
+    entry.root.adoptedStyleSheets = [...entry.root.adoptedStyleSheets, sheet];
+    if (entry.root !== document) shadowRoots += 1;
+  }
+
   let marked = 0;
   let skippedTooTall = 0;
   let headerTables = 0;
 
+  /** Parent element, crossing a shadow boundary upward to the host. */
+  const outerOf = (node: Element): Element | null => {
+    const parent = node.parentElement;
+    if (parent !== null) return parent;
+    const root = node.getRootNode();
+    return root instanceof ShadowRoot ? root.host : null;
+  };
+
   const isRendered = (element: Element): boolean => {
     if (element.getClientRects().length === 0) return false;
-    for (let node: Element | null = element; node !== null; node = node.parentElement) {
+    let node: Element | null = element;
+    while (node !== null) {
       const style = getComputedStyle(node);
       if (style.display === "none" || style.visibility === "hidden") return false;
       // Fixed/sticky layers repeat or float above pagination; break rules are
-      // meaningless there, so their contents are never marked.
+      // meaningless there, so their contents are never marked. The walk
+      // crosses shadow boundaries upward — a fixed host hides its content.
       if (style.position === "fixed" || style.position === "sticky") return false;
+      node = outerOf(node);
     }
     return true;
   };
 
-  // Array.from: this lib config has no DOM.Iterable, and NodeList is not iterable here.
-  const candidates = Array.from(document.querySelectorAll("table, figure, img, video, pre, svg"));
-  for (const element of candidates) {
-    if (!isRendered(element)) continue;
-    // An ancestor already kept whole covers this object (document order means
-    // ancestors are visited first); counting it again would overstate the pass.
-    if (element.closest("[data-dom2pdf-keep]") !== null) continue;
-    const height = element.getBoundingClientRect().height;
-    if (height <= 0) continue;
-    if (height > thresholdCssPx) {
-      skippedTooTall += 1;
-      continue;
+  // An ancestor already kept whole covers this object; a kept host in an
+  // outer root covers shadow content (closest() stops at the shadow
+  // boundary). Counting it again would overstate the pass.
+  const keptByAncestor = (element: Element): boolean => {
+    if (element.closest("[data-dom2pdf-keep]") !== null) return true;
+    let root = element.getRootNode();
+    while (root instanceof ShadowRoot) {
+      if (root.host.closest("[data-dom2pdf-keep]") !== null) return true;
+      root = root.host.getRootNode();
     }
-    element.setAttribute("data-dom2pdf-keep", "");
-    marked += 1;
+    return false;
+  };
+
+  for (const entry of roots) {
+    // Array.from: this lib config has no DOM.Iterable, and NodeList is not iterable here.
+    for (const element of entry.candidates) {
+      if (!isRendered(element)) continue;
+      if (keptByAncestor(element)) continue;
+      const height = element.getBoundingClientRect().height;
+      if (height <= 0) continue;
+      if (height > thresholdCssPx) {
+        skippedTooTall += 1;
+        continue;
+      }
+      element.setAttribute("data-dom2pdf-keep", "");
+      marked += 1;
+    }
+
+    const tables = Array.from(entry.root.querySelectorAll("table"));
+    for (const table of tables) {
+      if (!isRendered(table)) continue;
+      const thead = table.querySelector(":scope > thead");
+      if (thead === null || thead.getClientRects().length === 0) continue;
+      // Only the known "don't repeat the header" override is normalized;
+      // anything else (including a deliberately hidden thead) is left as authored.
+      if (getComputedStyle(thead).display !== "table-row-group") continue;
+      table.setAttribute("data-dom2pdf-repeat-header", "");
+      headerTables += 1;
+    }
   }
 
-  const tables = Array.from(document.querySelectorAll("table"));
-  for (const table of tables) {
-    if (!isRendered(table)) continue;
-    const thead = table.querySelector(":scope > thead");
-    if (thead === null || thead.getClientRects().length === 0) continue;
-    // Only the known "don't repeat the header" override is normalized;
-    // anything else (including a deliberately hidden thead) is left as authored.
-    if (getComputedStyle(thead).display !== "table-row-group") continue;
-    table.setAttribute("data-dom2pdf-repeat-header", "");
-    headerTables += 1;
-  }
-
-  return { marked, skippedTooTall, headerTables };
+  return { marked, skippedTooTall, headerTables, shadowRoots };
 }
 
 /**
@@ -187,14 +262,12 @@ export async function applyPaginationHints(
       });
     }
 
-    const counts = await page.evaluate(markKeepCandidates, thresholdCssPx);
-    // Marking is inert without the stylesheet, so injection comes last: a
-    // failure before this point leaves the document exactly as it was.
-    await page.addStyleTag({ content: PAGINATION_CSS });
+    const counts = await page.evaluate(applyKeepHints, thresholdCssPx);
     logger.debug("Keep-together applied", {
       marked: counts.marked,
       skippedTooTall: counts.skippedTooTall,
       headerTables: counts.headerTables,
+      shadowRoots: counts.shadowRoots,
       pageBudgetCssPx: Math.round(pageBudgetCssPx),
     });
     return { applied: true, ...counts, pageBudgetCssPx };

@@ -116,6 +116,8 @@ With `keepTogether: true`, dom2pdf measures every candidate as print will lay it
 - **Objects that fit one page never straddle a break**: tables, figures, images, videos, code blocks, and standalone SVGs get `break-inside: avoid`. Descendants of an already-kept object are covered by it.
 - **Rows are never clipped at a page edge**: a `tr` whose box would cross a boundary is pushed whole to the next page. A row taller than a page still breaks (forced breaks override avoidance).
 - **Overridden table headers repeat**: a table whose `<thead>` was forced to `table-row-group` gets a scoped rule restoring `table-header-group`. A `<thead>` hidden with `display: none` is respected and stays hidden — hiding it is intentional.
+- **CSP-safe injection**: the stylesheet is installed as a constructed stylesheet (`document.adoptedStyleSheets`), which strict `style-src` policies without `unsafe-inline` (gov.uk-style headers) do not block — `addStyleTag`/inline `<style>` would be refused there.
+- **Shadow DOM and iframe boxes are covered**: candidates are collected from the document *and every open shadow root* (one constructed stylesheet adopted per root — shadow trees cannot see the document's styles; MDN renders its code examples in `<mdn-code-example>` shadow roots), and an iframe that fits a page is kept whole as a box (Chromium honors `break-inside: avoid` on it — probe-verified). Honest limits: **closed** shadow roots are unreachable from page script and are not scanned; a too-tall iframe fragments normally, and objects *inside* an iframe are not individually measured — the box is the unit of keeping.
 
 Honest limits:
 
