@@ -1,5 +1,6 @@
 import type { Page } from "playwright";
 import type { NormalizedOptions } from "../config/normalize.js";
+import type { PaginationHintsResult } from "../pagination/keep-together.js";
 import type { Logger } from "../utils/logger.js";
 
 export interface RenderContext {
@@ -22,6 +23,8 @@ export interface RenderMetadata {
 export interface RenderResult {
   bytes: Uint8Array;
   metadata?: RenderMetadata;
+  /** Keep-together verdict, present exactly when `pagination.keepTogether` was requested. */
+  pagination?: PaginationHintsResult;
 }
 
 export type RenderMode = "document" | "screen";

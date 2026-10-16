@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computePaperFit, lengthToPx } from "../src/capture/paper.js";
+import { computePaperFit, computePrintGeometry, lengthToPx } from "../src/capture/paper.js";
 import type { NormalizedPdfOptions, NormalizedViewport } from "../src/config/normalize.js";
 import { Dom2PdfError } from "../src/errors/index.js";
 
@@ -126,5 +126,40 @@ describe("computePaperFit", () => {
       height: 100,
     });
     expect(huge.scale).toBeGreaterThanOrEqual(0.1);
+  });
+});
+
+describe("computePrintGeometry", () => {
+  it("reports the A4 content box print pagination lays out against", () => {
+    const geometry = computePrintGeometry(pdfOptions());
+    expect(geometry.contentWidthPx).toBeCloseTo(210 * MM_TO_PX, 3); // ≈ 793.7px
+    expect(geometry.contentHeightPx).toBeCloseTo(297 * MM_TO_PX, 3); // ≈ 1122.5px
+  });
+
+  it("subtracts all four margins from the content box", () => {
+    const geometry = computePrintGeometry(
+      pdfOptions({ margin: { top: "20mm", right: "10mm", bottom: "15mm", left: "5mm" } }),
+    );
+    expect(geometry.contentWidthPx).toBeCloseTo(210 * MM_TO_PX - 15 * MM_TO_PX, 3);
+    expect(geometry.contentHeightPx).toBeCloseTo(297 * MM_TO_PX - 35 * MM_TO_PX, 3);
+  });
+
+  it("swaps the box for landscape", () => {
+    const geometry = computePrintGeometry(pdfOptions({ landscape: true }));
+    expect(geometry.contentWidthPx).toBeCloseTo(297 * MM_TO_PX, 3);
+    expect(geometry.contentHeightPx).toBeCloseTo(210 * MM_TO_PX, 3);
+  });
+
+  it("uses explicit paper dimensions when no format is set", () => {
+    const geometry = computePrintGeometry(
+      pdfOptions({ format: undefined, width: "100mm", height: "150mm", margin: { top: "10mm" } }),
+    );
+    expect(geometry.contentWidthPx).toBeCloseTo(100 * MM_TO_PX, 3);
+    expect(geometry.contentHeightPx).toBeCloseTo(140 * MM_TO_PX, 3);
+  });
+
+  it("never reports a content box below 1px", () => {
+    const geometry = computePrintGeometry(pdfOptions({ margin: { top: "400mm", bottom: "400mm" } }));
+    expect(geometry.contentHeightPx).toBe(1);
   });
 });

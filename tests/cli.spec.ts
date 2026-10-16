@@ -95,6 +95,26 @@ test.describe("dom2pdf CLI", () => {
     expect(bytes.subarray(0, 5).toString("ascii")).toBe("%PDF-");
   });
 
+  test("convert --keep-together reports the pagination check in --json", async () => {
+    const output = path.join(workDir, "keep-together.pdf");
+    const result = await runCli([
+      "convert",
+      "fixtures/basic-text.html",
+      "-o",
+      output,
+      "--keep-together",
+      "--json",
+      "--quiet",
+    ]);
+    expect(result.code).toBe(0);
+    const report = JSON.parse(result.stdout) as {
+      checks: Array<{ id: string; status: string; detail: string }>;
+    };
+    const check = report.checks.find((entry) => entry.id === "render.pagination");
+    expect(check?.status).toBe("pass");
+    expect(check?.detail).toContain("keep-together");
+  });
+
   test("blocked destinations exit 3 with the error code on stderr", async () => {
     const result = await runCli(["convert", "http://10.0.0.1/x", "-o", path.join(workDir, "nope.pdf")]);
     expect(result.code).toBe(3);

@@ -32,6 +32,8 @@ export const DEFAULTS = {
   diagnosticsEnabled: false,
   /** Deterministic (byte-reproducible) output is opt-in. */
   deterministicEnabled: false,
+  /** Object-aware pagination (keep tables/images whole across page breaks) is opt-in. */
+  paginationKeepTogether: false,
   /** Safety rails on resource usage per conversion. */
   limitsMaxRequests: 500,
 } as const;
@@ -96,6 +98,11 @@ export interface NormalizedRenderOptions {
   timeoutMs: number;
 }
 
+export interface NormalizedPaginationOptions {
+  /** Keep page-fitting objects whole across page breaks (see `paginationSchema`). */
+  keepTogether: boolean;
+}
+
 export interface NormalizedSecurityOptions {
   allowLocalFiles: boolean;
   allowedLocalDirectories: string[];
@@ -122,6 +129,7 @@ export interface NormalizedOptions {
   pdf: NormalizedPdfOptions;
   readiness: NormalizedReadinessOptions;
   render: NormalizedRenderOptions;
+  pagination: NormalizedPaginationOptions;
   quality: NormalizedQualityOptions;
   fidelity: NormalizedFidelityOptions;
   /** Failure forensics: attach `details.diagnostics` to errors. */
@@ -269,6 +277,9 @@ export function normalizeOptions(raw: unknown): NormalizedOptions {
       settleMs: parsed.readiness?.settleMs ?? DEFAULTS.readinessSettleMs,
     },
     render: { timeoutMs: parsed.render?.timeoutMs ?? DEFAULTS.renderTimeoutMs },
+    pagination: {
+      keepTogether: parsed.pagination?.keepTogether ?? DEFAULTS.paginationKeepTogether,
+    },
     quality: {
       minTextChars: parsed.quality?.minTextChars,
       minPages: parsed.quality?.minPages,

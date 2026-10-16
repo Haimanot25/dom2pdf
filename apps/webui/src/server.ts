@@ -96,6 +96,7 @@ interface ConvertRequest {
   mode?: "document" | "screen";
   format?: PaperFormat;
   tolerant?: boolean;
+  keepTogether?: boolean;
 }
 
 function parseConvertRequest(raw: string): ConvertRequest | { error: string } {
@@ -122,6 +123,9 @@ function parseConvertRequest(raw: string): ConvertRequest | { error: string } {
   if (body.tolerant !== undefined && typeof body.tolerant !== "boolean") {
     return { error: '"tolerant" must be a boolean' };
   }
+  if (body.keepTogether !== undefined && typeof body.keepTogether !== "boolean") {
+    return { error: '"keepTogether" must be a boolean' };
+  }
   return {
     url: body.url.trim(),
     ...(body.mode === undefined ? {} : { mode: body.mode }),
@@ -129,6 +133,7 @@ function parseConvertRequest(raw: string): ConvertRequest | { error: string } {
       ? {}
       : { format: body.format as PaperFormat }), // cast is validated directly above
     ...(body.tolerant === undefined ? {} : { tolerant: body.tolerant }),
+    ...(body.keepTogether === undefined ? {} : { keepTogether: body.keepTogether }),
   };
 }
 
@@ -203,6 +208,7 @@ export function createWebServer(options: WebServerOptions): Server {
             ...(request.tolerant === true
               ? { readiness: { images: false, networkIdleMs: 0 } }
               : {}),
+            ...(request.keepTogether === true ? { pagination: { keepTogether: true } } : {}),
             ...(allowLoopback || allowPrivateNetwork
               ? {
                   security: {

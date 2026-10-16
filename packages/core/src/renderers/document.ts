@@ -1,4 +1,6 @@
+import { computePrintGeometry } from "../capture/paper.js";
 import { Dom2PdfError } from "../errors/index.js";
+import { applyPaginationHints } from "../pagination/keep-together.js";
 import { raceWithAbort } from "../utils/cancellation.js";
 import { Deadline } from "../utils/deadline.js";
 import { withTimeout } from "../utils/async.js";
@@ -25,10 +27,22 @@ export const documentRenderer: Renderer = {
     );
 
     const pdfOptions = buildPdfOptions(options.pdf);
+    // The geometry print pagination works against: `page.pdf()` lays the
+    // document out at contentWidth/scale and fits contentHeight/scale CSS px
+    // of content per page — the budget the keep-together marking guards.
+    const geometry = computePrintGeometry(options.pdf);
     logger.debug("Rendering PDF", { mode: "document", timeoutMs: options.render.timeoutMs });
 
     try {
       await finishAnimations(page);
+      const pagination = options.pagination.keepTogether
+        ? await applyPaginationHints(page, {
+            printLayoutWidthCssPx: geometry.contentWidthPx / options.pdf.scale,
+            pageBudgetCssPx: geometry.contentHeightPx / options.pdf.scale,
+            preferCSSPageSize: options.pdf.preferCSSPageSize,
+            logger,
+          })
+        : undefined;
       const bytes = await raceWithAbort(
         withTimeout(
           page.pdf(pdfOptions),
@@ -42,7 +56,7 @@ export const documentRenderer: Renderer = {
         ),
         signal,
       );
-      return { bytes };
+      return { bytes, ...(pagination !== undefined ? { pagination } : {}) };
     } catch (cause) {
       if (cause instanceof Dom2PdfError) throw cause;
       throw new Dom2PdfError({

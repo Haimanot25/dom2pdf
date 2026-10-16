@@ -67,6 +67,7 @@ dom2pdf convert ./invoice.html --min-pages 1 --max-pages 4 --json > report.json
 | `--fail-on-warnings` | `quality.failOnWarnings` |
 | `--diagnostics` | `diagnostics: true` — on failure, forensics (console, requests, DOM, screenshot) are written next to the output as `<output>.diag/` |
 | `--deterministic` | `deterministic: true` — PDF date stamps are zeroed in place so repeated conversions produce byte-identical files (same browser build); the summary prints the content digest |
+| `--keep-together` | `pagination.keepTogether: true` — object-aware pagination: page-fitting tables/images/code blocks stay whole across page breaks, rows are never clipped at a page edge, overridden table headers repeat |
 
 **Security**
 

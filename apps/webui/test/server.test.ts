@@ -178,6 +178,33 @@ describe("dom2pdf-web server", () => {
     expect(calls).toHaveLength(0);
   });
 
+  it("maps keepTogether onto the library pagination options", async () => {
+    await fetch(`${base}/api/convert`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ url: "https://example.com", keepTogether: true }),
+    });
+    expect(calls[0]?.pagination).toEqual({ keepTogether: true });
+
+    await fetch(`${base}/api/convert`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ url: "https://example.com", keepTogether: false }),
+    });
+    expect(calls[1]?.pagination).toBeUndefined(); // default stays off
+  });
+
+  it("rejects a non-boolean keepTogether flag", async () => {
+    const res = await fetch(`${base}/api/convert`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ url: "https://example.com", keepTogether: "yes" }),
+    });
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: { message: string } }).error.message).toContain("keepTogether");
+    expect(calls).toHaveLength(0);
+  });
+
   it("rejects cross-origin requests even with valid JSON", async () => {
     const foreign = await fetch(`${base}/api/convert`, {
       method: "POST",

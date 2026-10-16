@@ -89,6 +89,7 @@ export function registerConvertCommand(program: Command): void {
     .option("--min-text-chars <n>", "quality policy: minimum extractable characters", undefined)
     .option("--max-bytes <n>", "quality policy: maximum output size in bytes", undefined)
     .option("--fail-on-warnings", "quality policy: reject output that produced warnings")
+    .option("--keep-together", "object-aware pagination: keep page-fitting tables/images/code blocks whole across page breaks")
     .option("--allow-loopback", "permit loopback URLs (localhost, 127.0.0.0/8, ::1)")
     .option("--allow-private-network", "permit RFC1918/link-local destinations")
     .option("--max-requests <n>", "limit: max http(s) requests per conversion (default 500)", undefined)

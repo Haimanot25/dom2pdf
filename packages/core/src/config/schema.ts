@@ -217,6 +217,17 @@ export const renderSchema = z.strictObject({
   timeoutMs: z.number().int().positive().max(30 * 60_000).optional(),
 });
 
+export const paginationSchema = z.strictObject({
+  /**
+   * Object-aware pagination (opt-in, default `false`): keep tables, figures,
+   * images, videos, code blocks, and standalone SVGs whole across page breaks
+   * when they fit a single page; never clip a table row at a page edge; repeat
+   * overridden table header groups on continuation pages. Off by default, so
+   * pagination is byte-for-byte unchanged unless you ask for it.
+   */
+  keepTogether: z.boolean().optional(),
+});
+
 export const securitySchema = z.strictObject({
   /** Allow `{ type: "file" }` input. Off by default. */
   allowLocalFiles: z.boolean().optional(),
@@ -296,6 +307,8 @@ export const convertOptionsSchema = z
     pdf: pdfOptionsSchema.optional(),
     readiness: readinessSchema.optional(),
     render: renderSchema.optional(),
+    /** Object-aware page breaks (keep tables/images whole). Off by default. */
+    pagination: paginationSchema.optional(),
     /** Output policy: measured values are checked after rendering; violations fail with `QUALITY_POLICY_FAILED`. */
     quality: qualitySchema.optional(),
     /** Render-fidelity verification: visual comparison of the PDF against the source page. */

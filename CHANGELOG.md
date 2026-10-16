@@ -240,3 +240,41 @@ sites, SPAs, repos, news, commerce) and fixed what it surfaced:
   text with honest warnings; HTTP 403 bot walls still fail fast with
   `NAVIGATION_FAILED`; the remaining outliers (a trailing empty page on
   GitHub, a fidelity skip on a slow NASA load) are reported, not hidden.
+
+### Object-aware pagination (`pagination.keepTogether`, opt-in)
+
+New opt-in option `pagination: { keepTogether: true }` (CLI `--keep-together`,
+web UI checkbox) that stops the common print awkwardness. Off by default:
+without the option nothing is injected and pagination is exactly Chromium's
+default, byte for byte.
+
+- **Geometry-aware marking**: candidates are measured at the print layout
+  size (`contentWidth / scale`, transiently resized and restored; no resize
+  needed when the live viewport already matches) and only objects that fit
+  one page (≤ 95% of the content height budget) get `break-inside: avoid` —
+  tables, figures, images, videos, code blocks, and standalone SVGs no longer
+  straddle a page break.
+- **Rows never clipped at a page edge**: `tr { break-inside: avoid }` pushes a
+  straddling row whole to the next page; rows taller than a page still break.
+- **Overridden `<thead>` repeats**: tables whose header group was forced to
+  `table-row-group` (the responsive "don't repeat" trick) get a scoped rule
+  restoring `table-header-group`, so headers appear on continuation pages;
+  deliberately hidden (`display: none`) headers stay hidden.
+- **Honest limits, verified against this Chromium build before shipping**: an
+  avoid block *taller than a page* is pushed and then overflows invisibly past
+  the page edge, so over-tall objects are deliberately not marked (counted as
+  `too tall to keep`); `break-after: avoid` (heading grouping) is not honored
+  by the engine, so no heading rules are applied; with
+  `pdf.preferCSSPageSize` the paper comes from `@page` and cannot be known
+  pre-render, so the pass reports `skipped` with the reason instead of
+  guessing.
+- New `render.pagination` check (counts kept/repeated/too-tall plus the page
+  budget; `skipped` with the reason when the pre-pass could not run —
+  enrichment, never a conversion failure).
+- Docs note the fidelity interaction honestly: kept objects change per-page
+  composition versus the unpaginated screenshot, so those pages can score
+  lower.
+- Tests: schema/normalize/geometry units, CLI/web-UI flag mapping units, and
+  an e2e spec covering default-off, whole-table keep, row push, header
+  repeat, figure/caption keep, the too-tall guard, screen mode, and the
+  `preferCSSPageSize` skip.

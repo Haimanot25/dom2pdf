@@ -103,6 +103,27 @@ capture shows the finished page — never a mid-animation frame. (Chromium's
 `printToPDF` prints running Web Animations mid-flight, which clips text at
 the page edge on reveal-heavy sites.)
 
+#### `pagination` options
+
+Object-aware pagination — **opt-in**: with the option absent or `keepTogether: false`, nothing is injected and pagination is exactly Chromium's default.
+
+| Key | Type | Default |
+| --- | --- | --- |
+| `pagination.keepTogether` | boolean | `false` |
+
+With `keepTogether: true`, dom2pdf measures every candidate as print will lay it out (`contentWidth / scale` — at the paper-fit scale in screen mode) and applies only fragmentation rules verified against this Chromium build:
+
+- **Objects that fit one page never straddle a break**: tables, figures, images, videos, code blocks, and standalone SVGs get `break-inside: avoid`. Descendants of an already-kept object are covered by it.
+- **Rows are never clipped at a page edge**: a `tr` whose box would cross a boundary is pushed whole to the next page. A row taller than a page still breaks (forced breaks override avoidance).
+- **Overridden table headers repeat**: a table whose `<thead>` was forced to `table-row-group` gets a scoped rule restoring `table-header-group`. A `<thead>` hidden with `display: none` is respected and stays hidden — hiding it is intentional.
+
+Honest limits:
+
+- **Taller than one page ⇒ not kept.** An avoid block Chromium cannot fit is pushed to the next page and then overflows past the page edge, hiding its bottom; candidates are measured at the print layout width and skipped above 95% of the page budget instead. The `render.pagination` check reports the `too tall to keep` count.
+- **Heading grouping is not applied**: this engine does not honor `break-after: avoid` (verified), so heading-with-paragraph grouping is not claimed.
+- **`pdf.preferCSSPageSize: true`** lets the page's `@page` rule choose the paper, unknown before rendering — the pass reports `render.pagination` as `skipped` with the reason and leaves pagination untouched.
+- **Fidelity interaction**: fidelity compares against the *unpaginated* source page, so moving objects to the next page changes per-page composition and kept pages can score below `fidelity.threshold`. That is the option doing what you asked; tune `fidelity.threshold` or sample pages if the warning is noise.
+
 #### `quality` options (policies)
 
 Measured after rendering; violations throw `QUALITY_POLICY_FAILED` with
@@ -275,6 +296,7 @@ interface FidelityReport {
 | `pdf.determinism` | `deterministic: true` | Date spans zeroed in place plus the content digest; `warn` when a span could not be normalized |
 | `security.requests` | always | Requests intercepted and classified against destination policy, plus the configured cap |
 | `render.fidelity` | fidelity enabled | Mean SSIM of sampled pages against live-page screenshots; `skipped` (with the reason) when verification could not run |
+| `render.pagination` | `pagination.keepTogether: true` | Objects kept whole, headers set to repeat, objects too tall to keep, and the page budget; `skipped` (with the reason) when the pre-pass could not run |
 | `screen.output-policy` | screen mode | The measured paper-fit scale |
 
 ### Warning codes

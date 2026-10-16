@@ -51,6 +51,10 @@ Screen mode reports its measured fit (`screen.output-policy` check) plus heurist
 
 In both modes the capture is taken with CSS/Web-Animations animations settled at their end state, so a printout shows the finished page rather than a mid-animation frame.
 
+### Object-aware pagination (opt-in)
+
+`pagination: { keepTogether: true }` (CLI: `--keep-together`) stops the common print awkwardness — off by default, so pagination is unchanged unless you ask for it. dom2pdf measures each candidate exactly as print will lay it out and applies only the fragmentation rules this Chromium build actually honors (verified, not assumed): page-fitting tables, figures, images, videos, code blocks, and standalone SVGs stay whole across a page break; a table row whose box would cross a page edge is pushed whole instead of being clipped there; and tables whose `<thead>` was overridden to `table-row-group` (the responsive "don't repeat" trick) get their headers repeated on continuation pages. Objects taller than one page are deliberately *not* kept — Chromium would push an avoid block it cannot fit past the page edge and silently hide its bottom — and the `render.pagination` check reports what was kept, what repeats, and what was skipped (including why, when `pdf.preferCSSPageSize` leaves the paper unknown). One honest caveat: fidelity compares against the unpaginated source, so pages whose objects moved can score lower.
+
 ### Readiness
 
 After navigation, every conversion waits (under the single `readiness.timeoutMs` deadline) for the page to actually settle. Defaults: fonts settled (`fonts: true`), all images finished (`images: true`), and 300ms without network activity (`networkIdleMs: 300`, `0` disables). Pages with requests genuinely still loading when the deadline expires fail with `READINESS_TIMEOUT` naming the stage instead of hanging; purely *chatty* pages (analytics beacons that keep the activity clock fresh while nothing transfers — news homepages) no longer fail: readiness stops at its own stage budget and proceeds with an honest `readiness.network-unsettled` warning.

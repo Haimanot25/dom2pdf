@@ -68,11 +68,11 @@ export interface PaperFit {
 }
 
 /**
- * Computes the `paper-fit` scale: the viewport width (plus margins) is scaled
- * exactly onto the paper's content width. Content narrower than the paper is
- * never enlarged past 100%.
+ * Resolves the configured paper to a box in CSS px (orientation applied).
+ * Shared by the paper-fit scale and the print-geometry computation so both
+ * see exactly the same paper.
  */
-export function computePaperFit(pdf: NormalizedPdfOptions, viewport: NormalizedViewport): PaperFit {
+function resolvePaperBox(pdf: NormalizedPdfOptions): { widthPx: number; heightPx: number; label: string } {
   let widthPx: number;
   let heightPx: number;
   let label: string;
@@ -94,12 +94,49 @@ export function computePaperFit(pdf: NormalizedPdfOptions, viewport: NormalizedV
     label = `${label} (landscape)`;
   }
 
+  return { widthPx, heightPx, label };
+}
+
+/**
+ * Computes the `paper-fit` scale: the viewport width (plus margins) is scaled
+ * exactly onto the paper's content width. Content narrower than the paper is
+ * never enlarged past 100%.
+ */
+export function computePaperFit(pdf: NormalizedPdfOptions, viewport: NormalizedViewport): PaperFit {
+  const box = resolvePaperBox(pdf);
+
   const marginLeft = pdf.margin?.left !== undefined ? lengthToPx(pdf.margin.left) : 0;
   const marginRight = pdf.margin?.right !== undefined ? lengthToPx(pdf.margin.right) : 0;
-  const contentWidthPx = Math.max(1, widthPx - marginLeft - marginRight);
+  const contentWidthPx = Math.max(1, box.widthPx - marginLeft - marginRight);
 
   const fitScale = viewport.width > 0 ? contentWidthPx / viewport.width : 1;
   const scale = Math.min(1, Math.max(0.1, fitScale));
 
-  return { scale, paperWidthPx: widthPx, paperHeightPx: heightPx, contentWidthPx, paperLabel: label };
+  return { scale, paperWidthPx: box.widthPx, paperHeightPx: box.heightPx, contentWidthPx, paperLabel: box.label };
+}
+
+export interface PrintGeometry {
+  /** Content box width (inside left/right margins) of one page, in CSS px. */
+  contentWidthPx: number;
+  /** Content box height (inside top/bottom margins) of one page, in CSS px. */
+  contentHeightPx: number;
+}
+
+/**
+ * The content box one PDF page offers, in CSS px — the geometry print
+ * pagination works against. `page.pdf()` lays the document out at
+ * `contentWidth / scale` CSS px wide (independent of the live viewport) and
+ * fits `contentHeight / scale` CSS px of content onto each page, which is
+ * exactly the height budget the keep-together pass guards against.
+ */
+export function computePrintGeometry(pdf: NormalizedPdfOptions): PrintGeometry {
+  const box = resolvePaperBox(pdf);
+  const marginLeft = pdf.margin?.left !== undefined ? lengthToPx(pdf.margin.left) : 0;
+  const marginRight = pdf.margin?.right !== undefined ? lengthToPx(pdf.margin.right) : 0;
+  const marginTop = pdf.margin?.top !== undefined ? lengthToPx(pdf.margin.top) : 0;
+  const marginBottom = pdf.margin?.bottom !== undefined ? lengthToPx(pdf.margin.bottom) : 0;
+  return {
+    contentWidthPx: Math.max(1, box.widthPx - marginLeft - marginRight),
+    contentHeightPx: Math.max(1, box.heightPx - marginTop - marginBottom),
+  };
 }

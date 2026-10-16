@@ -1,5 +1,6 @@
-import { computePaperFit } from "../capture/paper.js";
+import { computePaperFit, computePrintGeometry } from "../capture/paper.js";
 import { Dom2PdfError } from "../errors/index.js";
+import { applyPaginationHints } from "../pagination/keep-together.js";
 import { raceWithAbort } from "../utils/cancellation.js";
 import { Deadline } from "../utils/deadline.js";
 import { withTimeout } from "../utils/async.js";
@@ -30,6 +31,7 @@ export const screenRenderer: Renderer = {
     // `pdf.scale` is rejected by schema validation in screen mode, so the
     // computed fit scale is the single source of truth here.
     const pdfOptions = { ...buildPdfOptions(options.pdf), scale: fit.scale };
+    const geometry = computePrintGeometry(options.pdf);
 
     logger.debug("Rendering PDF", {
       mode: "screen",
@@ -41,6 +43,16 @@ export const screenRenderer: Renderer = {
 
     try {
       await finishAnimations(page);
+      const pagination = options.pagination.keepTogether
+        ? await applyPaginationHints(page, {
+            // Print lays out at contentWidth/scale, which the fit scale maps
+            // back onto the viewport width — no resize in the common case.
+            printLayoutWidthCssPx: geometry.contentWidthPx / fit.scale,
+            pageBudgetCssPx: geometry.contentHeightPx / fit.scale,
+            preferCSSPageSize: options.pdf.preferCSSPageSize,
+            logger,
+          })
+        : undefined;
       const bytes = await raceWithAbort(
         withTimeout(
           page.pdf(pdfOptions),
@@ -56,6 +68,7 @@ export const screenRenderer: Renderer = {
       );
       return {
         bytes,
+        ...(pagination !== undefined ? { pagination } : {}),
         metadata: {
           outputPolicy: "paper-fit",
           scale: fit.scale,

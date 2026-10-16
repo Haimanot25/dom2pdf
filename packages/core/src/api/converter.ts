@@ -279,7 +279,7 @@ class ConverterImpl implements Converter {
               const browserVersion = page.context().browser()?.version() ?? "unknown";
               const renderer = rendererFor(normalized.mode);
               const renderStartedAt = Date.now();
-              const { bytes: renderedBytes, metadata } = await renderer.render({
+              const { bytes: renderedBytes, metadata, pagination } = await renderer.render({
                 page,
                 options: normalized,
                 logger: log.child("render"),
@@ -293,6 +293,21 @@ class ConverterImpl implements Converter {
                   status: "pass",
                   detail: `paper-fit: ${metadata.viewportWidth}px viewport scaled to ${Math.round(metadata.scale * 100)}% to fit ${metadata.paperLabel} content width`,
                 });
+              }
+              if (pagination !== undefined) {
+                checks.push(
+                  pagination.applied
+                    ? {
+                        id: "render.pagination",
+                        status: "pass",
+                        detail: `keep-together: ${pagination.marked} object(s) kept to one page (page budget ${Math.round(pagination.pageBudgetCssPx)}px), ${pagination.headerTables} table header(s) set to repeat${pagination.skippedTooTall > 0 ? `, ${pagination.skippedTooTall} object(s) too tall to keep` : ""}`,
+                      }
+                    : {
+                        id: "render.pagination",
+                        status: "skipped",
+                        detail: `keep-together not applied: ${pagination.reason}`,
+                      },
+                );
               }
 
               await guard.drain();

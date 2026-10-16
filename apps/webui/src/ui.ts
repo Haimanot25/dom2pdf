@@ -75,6 +75,10 @@ export function renderUi(): string {
       <input id="tolerant" type="checkbox">
       Tolerant readiness — don't wait for images/network idle (hanging-asset sites)
     </label>
+    <label class="check" title="Keeps page-fitting tables, images, and code blocks whole across page breaks, never clips a table row at a page edge, and repeats overridden table headers.">
+      <input id="keepTogether" type="checkbox">
+      Keep objects whole across page breaks (tables, images, code blocks)
+    </label>
     <button id="submit" type="submit">Convert to PDF</button>
   </form>
 
@@ -230,7 +234,8 @@ export function renderUi(): string {
         url: document.getElementById("url").value,
         mode: document.getElementById("mode").value,
         format: document.getElementById("format").value || undefined,
-        tolerant: document.getElementById("tolerant").checked
+        tolerant: document.getElementById("tolerant").checked,
+        keepTogether: document.getElementById("keepTogether").checked
       })
     }).then(function (res) {
       return res.json().then(function (body) {

@@ -179,6 +179,13 @@ describe("buildConvertOptions", () => {
     expect(absent.deterministic).toBeUndefined();
   });
 
+  it("maps --keep-together onto pagination.keepTogether and omits it otherwise", () => {
+    const enabled = buildConvertOptions(flags({ keepTogether: true }), { kind: "stdin" }, STDIN_HTML);
+    expect(enabled.pagination).toEqual({ keepTogether: true });
+    const absent = buildConvertOptions(flags(), { kind: "stdin" }, STDIN_HTML);
+    expect(absent.pagination).toBeUndefined();
+  });
+
   it("rejects non-integer numeric flags", () => {
     expect(() => buildConvertOptions(flags({ minPages: "2.5" }), { kind: "stdin" }, STDIN_HTML)).toThrow(
       UsageError,
