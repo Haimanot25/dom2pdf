@@ -289,3 +289,21 @@ default, byte for byte.
   an e2e spec covering default-off, whole-table keep, row push, header
   repeat, figure/caption keep, the too-tall guard, screen mode, and the
   `preferCSSPageSize` skip.
+
+### Web UI redesign (visual polish)
+
+- The local web UI (`dom2pdf-web`) got a full visual redesign: dark-first
+  theme that follows `prefers-color-scheme` (light and dark), a sectioned
+  form (target / output / reliability & layout) with switch-style option
+  toggles, stat tiles and prominent actions on the result card, and a
+  structured error card (icon, code chip, hint callout, forensics block).
+  Same contract as before — a fully self-contained single page with inline
+  CSS/JS and no external assets, identical element ids, and unchanged report
+  wording, so the security posture and tests are untouched.
+- Converting now shows a live status line with an elapsed-time ticker plus a
+  spinner on the button (`aria-busy`/`aria-live` for assistive technology).
+- Error messages strip embedded ANSI color codes (Playwright call-log
+  styling) that previously rendered as garbage glyphs in the error card.
+- `scripts/capture-ui-states.mjs` (manual, alongside the `validate-*`
+  scripts) captures every UI state — initial, result, error, forensics — in
+  both color schemes for visual review.

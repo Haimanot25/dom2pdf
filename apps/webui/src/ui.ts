@@ -2,6 +2,18 @@
  * The embedded single-page UI. Self-contained (inline CSS/JS, no external
  * assets) so it works offline and cannot pull anything unexpected — this is a
  * security tool as much as a convenience.
+ *
+ * Contract relied on by tests (apps/webui/test + tests/webui.spec.ts):
+ * `h1` text is exactly "dom2pdf", the page contains "/api/convert" and
+ * "Convert to PDF", and these ids keep working with the same show/hide
+ * mechanism: #form #submit #btnLabel #status #url #mode #format #tolerant
+ * #keepTogether #result #pages #size #duration #modeOut #warnings #fidelity
+ * #open #download #error #errcode #errmsg #errhint #forensics — plus the
+ * fidelity line wording ("Fidelity: mean SSIM", "not a pixel-perfectness
+ * claim") and the "fidelity ok" / "fidelity warn" class pair.
+ *
+ * Theme: dark by default, follows prefers-color-scheme for light mode; all
+ * colors live in CSS custom properties.
  */
 export function renderUi(): string {
   return `<!doctype html>
@@ -10,57 +22,290 @@ export function renderUi(): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>dom2pdf — local converter</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='6' fill='%232563eb'/><path d='M7.5 6.5h6.5l3 3v8a1 1 0 0 1-1 1h-8.5a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z' fill='none' stroke='white' stroke-width='1.5' stroke-linejoin='round'/><path d='M9 12.5h6M9 15.5h4' stroke='white' stroke-width='1.5' stroke-linecap='round'/></svg>">
 <style>
-  :root { color-scheme: light dark; --accent: #2563eb; --ok: #16a34a; --bad: #dc2626; --warn: #d97706; }
+  :root {
+    color-scheme: light dark;
+    --bg: #0a1120;
+    --panel: #101a2c;
+    --panel-2: #0c1523;
+    --line: #223352;
+    --text: #e8eef8;
+    --muted: #93a7c4;
+    --faint: #6d80a3;
+    --accent: #3b82f6;
+    --accent-deep: #1d4ed8;
+    --accent-soft: rgba(59, 130, 246, .16);
+    --ok: #22c55e;
+    --ok-text: #6ee7a0;
+    --ok-soft: rgba(34, 197, 94, .12);
+    --bad: #ef4444;
+    --bad-text: #fca5a5;
+    --bad-soft: rgba(239, 68, 68, .12);
+    --warn: #f59e0b;
+    --warn-text: #fcd34d;
+    --warn-soft: rgba(245, 158, 11, .12);
+    --shadow: 0 14px 36px rgba(2, 8, 20, .45);
+    --radius: 16px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f3f6fb;
+      --panel: #ffffff;
+      --panel-2: #f7f9fc;
+      --line: #e3e9f2;
+      --text: #16213a;
+      --muted: #55678a;
+      --faint: #7e8daa;
+      --accent-soft: rgba(59, 130, 246, .10);
+      --ok-text: #15803d;
+      --bad-text: #b91c1c;
+      --warn-text: #b45309;
+      --ok-soft: rgba(34, 197, 94, .10);
+      --bad-soft: rgba(239, 68, 68, .08);
+      --warn-soft: rgba(245, 158, 11, .12);
+      --shadow: 0 10px 30px rgba(22, 33, 58, .08);
+    }
+  }
   * { box-sizing: border-box; }
-  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background: #0e1621; color: #e7eef7; }
-  main { max-width: 760px; margin: 0 auto; padding: 40px 20px 64px; }
-  h1 { font-size: 24px; margin: 0 0 4px; }
-  .sub { color: #9fc3e8; margin: 0 0 24px; }
-  form { display: grid; gap: 12px; background: #162232; border: 1px solid #24425e; border-radius: 12px; padding: 20px; }
-  label { display: grid; gap: 4px; font-size: 13px; color: #9fc3e8; }
-  input, select { font: inherit; padding: 10px 12px; border-radius: 8px; border: 1px solid #2c4a68; background: #0e1621; color: #e7eef7; }
-  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .check { display: flex; align-items: center; gap: 8px; color: #e7eef7; }
-  .check input { width: auto; }
-  button { font: inherit; font-weight: 600; padding: 11px 16px; border: 0; border-radius: 8px; background: var(--accent); color: white; cursor: pointer; }
-  button:disabled { opacity: .6; cursor: wait; }
-  .card { margin-top: 20px; border-radius: 12px; padding: 16px 20px; border: 1px solid #24425e; background: #162232; display: none; }
-  .card.show { display: block; }
-  .stats { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 8px 0; }
-  .stat b { display: block; font-size: 20px; }
-  .stat span { font-size: 12px; color: #9fc3e8; }
-  .links { display: flex; gap: 12px; margin-top: 8px; }
-  .links a { color: white; background: var(--ok); text-decoration: none; font-weight: 600; padding: 9px 14px; border-radius: 8px; }
-  .links a.secondary { background: #2c4a68; }
-  #error { border-color: var(--bad); }
-  #error .code { display: inline-block; font: 600 12px ui-monospace, monospace; background: var(--bad); color: white; border-radius: 6px; padding: 2px 8px; margin-bottom: 8px; }
-  .fidelity { font-size: 13px; margin: 2px 0 6px; color: #9fc3e8; }
-  .fidelity.ok { color: #86efac; }
-  .fidelity.warn { color: #fcd34d; }
-  .forensics { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; color: #fcd34d; background: #0e1621; border: 1px solid #2c4a68; border-radius: 8px; padding: 10px 12px; margin-top: 10px; max-height: 240px; overflow: auto; }
-  .hint { color: #fcd34d; font-size: 13px; margin-top: 8px; }
-  .warnings { color: #fcd34d; font-size: 13px; margin: 4px 0 0; padding-left: 18px; }
-  footer { margin-top: 28px; color: #6f8bab; font-size: 12px; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+    background-color: var(--bg);
+    background-image:
+      radial-gradient(900px 460px at 12% -8%, var(--accent-soft), transparent 60%),
+      radial-gradient(700px 400px at 92% -4%, rgba(96, 165, 250, .10), transparent 55%);
+    color: var(--text);
+  }
+  .wrap { max-width: 780px; margin: 0 auto; padding: 0 20px; }
+
+  /* ---- hero ---- */
+  .hero { padding: 44px 0 6px; }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .mark {
+    width: 42px; height: 42px; border-radius: 12px; flex: none;
+    display: grid; place-items: center; color: #fff;
+    background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+    box-shadow: 0 8px 20px rgba(37, 99, 235, .38);
+  }
+  .mark svg { width: 22px; height: 22px; }
+  h1 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -.02em; }
+  .tagline { margin: 2px 0 0; font-size: 13px; font-weight: 600; color: var(--accent); letter-spacing: .01em; }
+  .sub { margin: 16px 0 26px; color: var(--muted); max-width: 62ch; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .9em; background: rgba(148, 163, 184, .16); border: 1px solid var(--line);
+    padding: 1px 6px; border-radius: 6px;
+  }
+
+  /* ---- cards ---- */
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px;
+    margin-bottom: 18px;
+  }
+  #result, #error { display: none; }
+  #result.show, #error.show { display: block; animation: rise .28s ease both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .section-label {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .1em; color: var(--faint); margin: 6px 0 -4px;
+  }
+
+  /* ---- form ---- */
+  form { display: grid; gap: 14px; }
+  label.field { display: grid; gap: 7px; font-size: 13px; font-weight: 600; color: var(--muted); }
+  .input-wrap { position: relative; display: block; }
+  .input-wrap > svg {
+    position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+    width: 16px; height: 16px; color: var(--faint); pointer-events: none;
+  }
+  input, select {
+    font: inherit; width: 100%; color: var(--text);
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 10px; padding: 11px 12px;
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+  #url { padding-left: 38px; }
+  input:hover, select:hover { border-color: rgba(59, 130, 246, .5); }
+  input:focus-visible, select:focus-visible {
+    outline: none; border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, .28);
+  }
+  input::placeholder { color: var(--faint); }
+  select { appearance: auto; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+  .opt {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 13px 15px; background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 12px; cursor: pointer;
+    transition: border-color .15s ease;
+  }
+  .opt:hover { border-color: rgba(59, 130, 246, .55); }
+  .opt-text strong { display: block; font-size: 14px; font-weight: 600; color: var(--text); }
+  .opt-text span { display: block; font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+  .switch {
+    appearance: none; -webkit-appearance: none; flex: none; margin: 0;
+    width: 42px; height: 24px; border-radius: 999px; border: 0; padding: 0;
+    background: rgba(148, 163, 184, .38); position: relative; cursor: pointer;
+    transition: background .15s ease;
+  }
+  .switch::after {
+    content: ""; position: absolute; top: 3px; left: 3px;
+    width: 18px; height: 18px; border-radius: 50%; background: #fff;
+    box-shadow: 0 1px 3px rgba(2, 8, 20, .45); transition: transform .15s ease;
+  }
+  .switch:checked { background: var(--accent); }
+  .switch:checked::after { transform: translateX(18px); }
+  .switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; box-shadow: none; }
+
+  .btn {
+    margin-top: 6px; width: 100%; font: inherit; font-weight: 650;
+    letter-spacing: .01em; color: #fff; border: 0; border-radius: 12px;
+    padding: 13px 18px; cursor: pointer;
+    background: linear-gradient(180deg, var(--accent), var(--accent-deep));
+    box-shadow: 0 10px 24px rgba(37, 99, 235, .35);
+    transition: transform .12s ease, box-shadow .12s ease, opacity .15s ease;
+  }
+  .btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 14px 28px rgba(37, 99, 235, .42); }
+  .btn:active:not(:disabled) { transform: translateY(0); }
+  .btn:disabled { opacity: .78; cursor: progress; }
+  .btn[aria-busy="true"]::before {
+    content: ""; display: inline-block; width: 14px; height: 14px;
+    margin-right: 9px; vertical-align: -2px; border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, .35); border-top-color: #fff;
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .status { min-height: 18px; text-align: center; font-size: 13px; color: var(--muted); }
+  .status:empty { min-height: 6px; }
+
+  /* ---- result ---- */
+  #result { border-color: rgba(34, 197, 94, .38); }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  .badge { display: inline-flex; align-items: center; gap: 9px; font-size: 15.5px; font-weight: 700; }
+  .badge .ico {
+    width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--ok-soft); color: var(--ok); flex: none;
+  }
+  .badge .ico svg { width: 14px; height: 14px; }
+  #error .badge .ico { background: var(--bad-soft); color: var(--bad); }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .stat {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 12px; padding: 11px 13px; min-width: 0;
+  }
+  .stat b { display: block; font-size: 21px; font-weight: 700; letter-spacing: -.02em; overflow: hidden; text-overflow: ellipsis; }
+  .stat span {
+    display: block; font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .08em; color: var(--faint); margin-top: 2px;
+  }
+  .fidelity { display: flex; align-items: flex-start; gap: 9px; margin-top: 16px; font-size: 13.5px; color: var(--muted); }
+  .fidelity:empty { display: none; }
+  .fidelity::before {
+    content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--faint); margin-top: 6px;
+  }
+  .fidelity.ok { color: var(--ok-text); }
+  .fidelity.ok::before { background: var(--ok); }
+  .fidelity.warn { color: var(--warn-text); }
+  .fidelity.warn::before { background: var(--warn); }
+  .warnings { color: var(--warn-text); font-size: 13.5px; margin: 12px 0 0; padding-left: 18px; }
+  .warnings:empty { display: none; }
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 18px; }
+  .actions a {
+    text-decoration: none; font-weight: 650; font-size: 14px;
+    padding: 10px 18px; border-radius: 10px; transition: transform .12s ease, filter .12s ease;
+  }
+  .actions a:hover { transform: translateY(-1px); filter: brightness(1.06); }
+  #open { color: #fff; background: linear-gradient(180deg, var(--ok), #15803d); box-shadow: 0 8px 20px rgba(22, 163, 74, .32); }
+  #download { color: var(--text); background: var(--panel-2); border: 1px solid var(--line); }
+
+  /* ---- error ---- */
+  #error { border-color: rgba(239, 68, 68, .42); }
+  .code {
+    font: 600 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: .05em; color: var(--bad-text);
+    background: var(--bad-soft); border: 1px solid rgba(239, 68, 68, .4);
+    border-radius: 999px; padding: 6px 12px;
+  }
+  #errmsg { margin-top: 14px; font-size: 14.5px; }
+  #errhint {
+    margin-top: 12px; padding: 11px 13px; font-size: 13.5px;
+    color: var(--warn-text); background: var(--warn-soft);
+    border: 1px solid rgba(245, 158, 11, .38); border-radius: 10px;
+  }
+  #errhint:empty { display: none; }
+  .forensics {
+    margin-top: 12px; padding: 12px 14px; max-height: 260px; overflow: auto;
+    font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+    white-space: pre-wrap; word-break: break-word;
+    color: var(--warn-text); background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 10px;
+  }
+  .forensics:empty { display: none; }
+
+  footer { padding: 4px 0 48px; color: var(--faint); font-size: 12.5px; line-height: 1.7; }
+
+  @media (max-width: 640px) {
+    .wrap { padding: 0 14px; }
+    .hero { padding-top: 30px; }
+    h1 { font-size: 24px; }
+    .grid { grid-template-columns: 1fr; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .card { padding: 18px 16px; }
+    .opt { align-items: flex-start; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
 </style>
 </head>
 <body>
-<main>
-  <h1>dom2pdf</h1>
-  <p class="sub">Local converter — paste a target URL, get a PDF. The full security policy applies: only <code>http(s)</code>, public destinations by default.</p>
-  <form id="form">
-    <label>Target URL
-      <input id="url" type="url" required placeholder="https://example.com" autocomplete="off" spellcheck="false">
+<header class="hero wrap">
+  <div class="brand">
+    <span class="mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M7.5 4.5h6.5l4 4v11a1 1 0 0 1-1 1H7.5a1 1 0 0 1-1-1v-14a1 1 0 0 1 1-1z"/>
+        <path d="M14 4.5v4h4"/><path d="M9 13h6"/><path d="M9 16.5h4"/>
+      </svg>
+    </span>
+    <div>
+      <h1>dom2pdf</h1>
+      <p class="tagline">HTML → PDF, verified</p>
+    </div>
+  </div>
+  <p class="sub">Local converter — paste a target URL, get a PDF. The full security policy applies: only <code>http(s)</code>, public destinations by default. Nothing leaves this machine.</p>
+</header>
+
+<main class="wrap">
+  <form id="form" class="card">
+    <div class="section-label">Target</div>
+    <label class="field" for="url">Target URL
+      <span class="input-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+          <path d="M10.5 13.5a4.5 4.5 0 0 0 6.36 0l2.12-2.12a4.5 4.5 0 0 0-6.36-6.36l-1.2 1.2"/>
+          <path d="M13.5 10.5a4.5 4.5 0 0 0-6.36 0l-2.12 2.12a4.5 4.5 0 0 0 6.36 6.36l1.2-1.2"/>
+        </svg>
+        <input id="url" type="url" required placeholder="https://example.com" autocomplete="off" spellcheck="false">
+      </span>
     </label>
-    <div class="row">
-      <label>Mode
+
+    <div class="section-label">Output</div>
+    <div class="grid">
+      <label class="field" for="mode">Mode
         <select id="mode">
           <option value="document">document (print CSS, paper-fit)</option>
           <option value="screen">screen (paper-fit output policy)</option>
         </select>
       </label>
-      <label>Paper format
+      <label class="field" for="format">Paper format
         <select id="format">
           <option value="">browser default (A4)</option>
           <option value="A4">A4</option>
@@ -71,35 +316,60 @@ export function renderUi(): string {
         </select>
       </label>
     </div>
-    <label class="check" title="Some sites keep requests open forever (streaming assets, long polling); without this the readiness deadline waits on them and fails.">
-      <input id="tolerant" type="checkbox">
-      Tolerant readiness — don't wait for images/network idle (hanging-asset sites)
+
+    <div class="section-label">Reliability &amp; layout</div>
+    <label class="opt" title="Some sites keep requests open forever (streaming assets, long polling); without this the readiness deadline waits on them and fails.">
+      <span class="opt-text">
+        <strong>Tolerant readiness</strong>
+        <span>Don't wait for images/network idle — for sites with hanging assets</span>
+      </span>
+      <input id="tolerant" class="switch" type="checkbox">
     </label>
-    <label class="check" title="Keeps page-fitting tables, images, and code blocks whole across page breaks, never clips a table row at a page edge, and repeats overridden table headers.">
-      <input id="keepTogether" type="checkbox">
-      Keep objects whole across page breaks (tables, images, code blocks)
+    <label class="opt" title="Keeps page-fitting tables, images, and code blocks whole across page breaks, never clips a table row at a page edge, and repeats overridden table headers.">
+      <span class="opt-text">
+        <strong>Keep objects whole across page breaks</strong>
+        <span>Tables, images, and code blocks don't split at page edges; overridden table headers repeat</span>
+      </span>
+      <input id="keepTogether" class="switch" type="checkbox">
     </label>
-    <button id="submit" type="submit">Convert to PDF</button>
+
+    <button id="submit" class="btn" type="submit"><span id="btnLabel">Convert to PDF</span></button>
+    <div class="status" id="status" aria-live="polite"></div>
   </form>
 
-  <section class="card" id="result">
-    <strong>Converted</strong>
+  <section class="card" id="result" aria-live="polite">
+    <div class="card-head">
+      <span class="badge">
+        <span class="ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l5 5 10-11"/></svg>
+        </span>
+        Converted
+      </span>
+    </div>
     <div class="stats">
       <div class="stat"><b id="pages">–</b><span>pages</span></div>
       <div class="stat"><b id="size">–</b><span>size</span></div>
       <div class="stat"><b id="duration">–</b><span>duration</span></div>
       <div class="stat"><b id="modeOut">–</b><span>mode</span></div>
     </div>
-    <ul class="warnings" id="warnings"></ul>
     <div class="fidelity" id="fidelity"></div>
-    <div class="links">
+    <ul class="warnings" id="warnings"></ul>
+    <div class="actions">
       <a id="open" href="#" target="_blank" rel="noopener">Open PDF</a>
       <a id="download" href="#" class="secondary" download="dom2pdf.pdf">Download PDF</a>
     </div>
   </section>
 
-  <section class="card" id="error">
-    <span class="code" id="errcode">ERROR</span>
+  <section class="card" id="error" role="alert">
+    <div class="card-head">
+      <span class="badge">
+        <span class="ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"/></svg>
+        </span>
+        Conversion failed
+      </span>
+      <span class="code" id="errcode">ERROR</span>
+    </div>
     <div id="errmsg"></div>
     <div class="hint" id="errhint"></div>
     <pre class="forensics" id="forensics"></pre>
@@ -115,11 +385,14 @@ export function renderUi(): string {
 (function () {
   var form = document.getElementById("form");
   var btn = document.getElementById("submit");
+  var btnLabel = document.getElementById("btnLabel");
+  var statusLine = document.getElementById("status");
   var result = document.getElementById("result");
   var error = document.getElementById("error");
   var openLink = document.getElementById("open");
   var downloadLink = document.getElementById("download");
   var currentUrl = null;
+  var ticker = null;
 
   function bytesHuman(n) {
     if (n < 1024) return n + " B";
@@ -144,6 +417,7 @@ export function renderUi(): string {
     var fidelity = resultData.report.fidelity;
     if (!fidelity) {
       fid.textContent = "";
+      fid.className = "fidelity";
     } else if (fidelity.status === "measured") {
       var lastPage = fidelity.sampledPages.length > 0
         ? fidelity.sampledPages[fidelity.sampledPages.length - 1]
@@ -166,12 +440,19 @@ export function renderUi(): string {
     try { host = new URL(document.getElementById("url").value).hostname || "dom2pdf"; } catch (e) { /* keep default */ }
     downloadLink.download = host + "-" + new Date().toISOString().slice(0, 10) + ".pdf";
     result.classList.add("show");
+    statusLine.textContent = "";
+  }
+
+  // Playwright's failure text embeds ANSI color codes (call-log styling);
+  // in plain text they render as garbage glyphs, so strip them for display.
+  function stripAnsi(s) {
+    return String(s).replace(/\\u001b\\[[0-9;]*m/g, "");
   }
 
   function showError(code, message, details) {
     result.classList.remove("show");
     document.getElementById("errcode").textContent = code;
-    document.getElementById("errmsg").textContent = message;
+    document.getElementById("errmsg").textContent = stripAnsi(message);
     var hint = "";
     if (code === "BLOCKED_URL" && /loopback|private/i.test(message)) {
       hint = "Testing a local page? Restart the server with --allow-loopback (and --allow-private-network for RFC1918 targets).";
@@ -182,6 +463,7 @@ export function renderUi(): string {
     document.getElementById("errhint").textContent = hint;
     document.getElementById("forensics").textContent = forensicsText(details);
     error.classList.add("show");
+    statusLine.textContent = "";
   }
 
   // Summarizes the failure-forensics bundle (details.diagnostics) the server
@@ -221,10 +503,29 @@ export function renderUi(): string {
     return "Forensics at failure" + (bundle.url ? " (page was at " + bundle.url + ")" : "") + ":\\n" + lines.join("\\n");
   }
 
+  function startBusy() {
+    btn.disabled = true;
+    btn.setAttribute("aria-busy", "true");
+    btnLabel.textContent = "Converting…";
+    statusLine.textContent = "Working — Chromium warms up on the first run; heavy pages can take a while.";
+    var startedAt = Date.now();
+    ticker = setInterval(function () {
+      var seconds = Math.round((Date.now() - startedAt) / 1000);
+      statusLine.textContent = "Converting… " + seconds + "s — the browser renders the page as a real print job.";
+    }, 1000);
+  }
+
+  function stopBusy() {
+    if (ticker !== null) { clearInterval(ticker); ticker = null; }
+    btn.disabled = false;
+    btn.removeAttribute("aria-busy");
+    btnLabel.textContent = "Convert to PDF";
+    statusLine.textContent = "";
+  }
+
   form.addEventListener("submit", function (event) {
     event.preventDefault();
-    btn.disabled = true;
-    btn.textContent = "Converting… (browser is warming up on the first run)";
+    startBusy();
     result.classList.remove("show");
     error.classList.remove("show");
     fetch("/api/convert", {
@@ -251,8 +552,7 @@ export function renderUi(): string {
     }).catch(function (e) {
       showError("NETWORK", String(e));
     }).finally(function () {
-      btn.disabled = false;
-      btn.textContent = "Convert to PDF";
+      stopBusy();
     });
   });
 })();
