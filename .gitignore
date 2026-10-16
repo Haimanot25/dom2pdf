@@ -19,6 +19,9 @@ tmp/
 output*.pdf
 !fixtures/**/*.pdf
 
+# Local validation artifacts (real-site conversion runs: PDFs + reports)
+artifacts/
+
 # Editors / OS
 .vscode/
 .idea/

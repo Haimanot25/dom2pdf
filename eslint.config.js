@@ -26,7 +26,7 @@ export default tseslint.config(
   },
   {
     // CLI and scripts are allowed to write to stdout/stderr directly.
-    files: ["apps/**/*.ts", "packages/benchmark/**/*.ts", "*.config.ts", "tests/**/*.ts"],
+    files: ["apps/**/*.ts", "packages/benchmark/**/*.ts", "*.config.ts", "tests/**/*.ts", "scripts/**/*.mjs"],
     rules: { "no-console": "off" },
   },
 );
