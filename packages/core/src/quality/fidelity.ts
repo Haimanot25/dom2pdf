@@ -19,20 +19,8 @@ import {
 } from "./similarity.js";
 
 /**
- * Render-fidelity verification.
- *
- * After the PDF is produced, this phase re-rasterizes sampled pages inside
- * Chromium with pdf.js and compares them, page by page, against screenshots of
- * the live page captured under the same media emulation and at the print
- * layout width. Comparison runs entirely in-browser (canvas pixel access), so
- * no native dependencies are added and no pixel data leaves the process.
- *
- * Honesty rules for this phase:
- * - Scores are a heuristic visual comparison (blurred, resized SSIM plus a
- *   perceptual-hash cross-check), never a pixel-perfectness claim.
- * - Any infrastructure failure degrades to `{ status: "skipped" }` with the
- *   reason — scores are never fabricated.
- * - Cancellation (`CANCELLED`) propagates; it is not an infrastructure skip.
+ * Re-rasterizes sampled pages in-browser with pdf.js and compares them against live-page
+ * screenshots; failures degrade to `{ status: "skipped" }`, cancellation propagates as-is.
  */
 
 /** Vertical alignment search range around the nominal page boundary, in CSS px. */
@@ -43,7 +31,7 @@ const COMPARE_WIDTH = 384;
 const PER_CALL_TIMEOUT_MS = 30_000;
 /** Individual patience for images that start loading after the capture viewport resize. */
 const IMAGE_SETTLE_CAP_MS = 1_000;
-/** Guard against absurdly large pageRanges expansions. */
+/** Cap on expanded `pageRanges` length; larger ranges are rejected. */
 const MAX_RANGE_PAGES = 10_000;
 
 const VERIFY_ORIGIN = "http://dom2pdf-verify.test";
@@ -108,9 +96,8 @@ export interface SliceGeometry {
 }
 
 /**
- * Derives the slice geometry for one PDF page from the paper size actually
- * produced (measured from the PDF itself, so custom/CSS paper sizes, landscape
- * and `preferCSSPageSize` are honored).
+ * Derives slice geometry from the paper size measured in the produced PDF, so custom/CSS
+ * sizes, landscape, and `preferCSSPageSize` are honored.
  */
 export function computeSliceGeometry(input: {
   paperWidthPt: number;
@@ -146,13 +133,9 @@ export function computeSliceGeometry(input: {
   };
 }
 
-/**
- * Expands Chromium's `pageRanges` grammar into the document page each PDF page
- * was printed from (PDF page n → document page `result[n - 1]`). Returns an
- * empty array when the mapping cannot be established — out-of-range pages are
- * silently dropped by Chromium, and a non-1:1 mapping cannot be located in the
- * document flow.
- */
+/** Maps PDF page n to the document page it printed from (`result[n - 1]`). Returns an
+ * empty array when the mapping cannot be established (Chromium drops out-of-range pages
+ * silently, or the range does not cover the document 1:1). */
 export function expandPageRanges(pageRanges: string | undefined, pdfPageCount: number): number[] {
   if (pageRanges === undefined) {
     return Array.from({ length: pdfPageCount }, (_value, index) => index + 1);
@@ -203,11 +186,8 @@ declare global {
   }
 }
 
-/**
- * In-page runtime, injected as a classic script. The similarity primitives are
- * the same functions unit-tested in Node, stringified into the page so there is
- * a single source of truth for the math.
- */
+/** In-page runtime injected as a classic script; the similarity primitives are the same
+ * functions unit-tested in Node, stringified into the page (single source of truth). */
 const DRIVER_SOURCE = `
 async function pfDecodePng(b64) {
   const binary = atob(b64);
@@ -296,7 +276,6 @@ async function pfComparePage(input) {
 window.__dom2pdfFidelity = { loadPdf: pfLoadPdf, comparePage: pfComparePage };
 `;
 
-/** Builds the in-page script: similarity primitives (single source of truth) + driver. */
 function buildDriverSource(): string {
   return [
     toGray.toString(),
@@ -313,10 +292,8 @@ function buildDriverSource(): string {
 
 const require_ = createRequire(import.meta.url);
 
-/**
- * Waits (bounded) for images that the capture-viewport resize may have kicked
- * off, so screenshots do not catch a half-loaded reflow.
- */
+/** Bounded wait for images kicked off by the capture-viewport resize, so screenshots do not
+ * catch a half-loaded reflow. */
 async function settleImages(page: Page): Promise<void> {
   await page.evaluate(async (capMs) => {
     const pending = Array.from(document.images)
@@ -352,10 +329,7 @@ export interface MeasureFidelityInput {
   signal: AbortSignal | undefined;
 }
 
-/**
- * Measures render fidelity for sampled pages. Never throws except on
- * cancellation; every other failure degrades to `{ status: "skipped" }`.
- */
+/** Never throws except on cancellation; every other failure degrades to `{ status: "skipped" }`. */
 export async function measureFidelity(input: MeasureFidelityInput): Promise<FidelityReport> {
   const { page, bytes, options, signal } = input;
   const startedAt = Date.now();
@@ -461,9 +435,8 @@ export async function measureFidelity(input: MeasureFidelityInput): Promise<Fide
     const sampledPages: number[] = [];
     for (let page = 1; page <= sampleCount; page += 1) sampledPages.push(page);
 
-    // Capture at the print layout width so the live layout matches the one
-    // `page.pdf()` printed (document mode). Screen mode keeps the conversion
-    // viewport: its PDF is the screen layout, scaled.
+    // Capture at the print layout width so live layout matches what `page.pdf()` printed;
+    // screen mode keeps the conversion viewport (its PDF is the screen layout, scaled).
     const captureViewport = { width: geometry.captureWidthCss, height: geometry.captureHeightCss };
     if (
       originalViewport !== null &&
@@ -507,8 +480,7 @@ export async function measureFidelity(input: MeasureFidelityInput): Promise<Fide
         target < stripOriginCss + stripHeight;
         target += captureViewport.height
       ) {
-        // Scroll positions clamp at the document edges; rows outside the
-        // document stay background-filled, exactly like the PDF's page tail.
+        // Rows outside the document stay background-filled, matching the PDF's page tail.
         const scroll = Math.round(Math.min(Math.max(target, 0), maxScroll));
         if (scroll === previousScroll) continue;
         previousScroll = scroll;
@@ -569,7 +541,7 @@ export async function measureFidelity(input: MeasureFidelityInput): Promise<Fide
       durationMs: Date.now() - startedAt,
     };
   } catch (cause) {
-    // Cooperative cancellation is a conversion-level outcome, not a skip.
+    // Cancellation is a conversion-level outcome, not a fidelity skip.
     if (isDom2PdfError(cause) && cause.code === "CANCELLED") throw cause;
     return skippedReport(
       `verification infrastructure failed: ${cause instanceof Error ? cause.message : String(cause)}`,
@@ -597,7 +569,6 @@ function previewPages(pages: string[]): string {
   return pages.length > 3 ? `${shown}, … (${pages.length} total)` : shown;
 }
 
-/** Turns a fidelity outcome into the quality-report check and any warnings. */
 export function fidelityDiagnostics(fidelity: FidelityReport): {
   check: QualityCheck;
   warnings: QualityWarning[];

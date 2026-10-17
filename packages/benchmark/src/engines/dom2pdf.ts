@@ -3,10 +3,8 @@ import type { BenchmarkScenario } from "../scenarios.js";
 import type { BenchmarkEngine, EngineAvailability, EngineTimedRun } from "./types.js";
 
 /**
- * dom2pdf itself: the full production pipeline — isolated context, request
- * policy, readiness phase, quality report — measured end to end. The browser
- * launches on the first timed run and is reused for the rest of the suite,
- * matching how the library is used in practice.
+ * dom2pdf itself: full pipeline (isolated context, request policy, readiness,
+ * quality report). The browser launches on the first run and is then reused.
  */
 export function createDom2PdfEngine(): BenchmarkEngine {
   let converter: Converter | undefined;

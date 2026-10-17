@@ -7,13 +7,9 @@ export interface PageSize {
   height: number;
 }
 
-/**
- * Reads a page's media box (via the page viewport) in PDF points, e.g. A4 is
- * ≈ 595.3 × 841.9pt and A5 is ≈ 419.5 × 595.3pt.
- */
+/** Reads a page's media box (via the viewport) in PDF points; A4 ≈ 595.3 × 841.9pt. */
 export async function getPdfPageSize(bytes: Uint8Array, pageNumber = 1): Promise<PageSize> {
-  // `new Uint8Array(bytes)` copies into a plain Uint8Array: pdfjs rejects Node
-  // Buffers, and Buffer#slice would return a shared view rather than a copy.
+  // Copies into a plain Uint8Array: pdfjs rejects Node Buffers, and Buffer#slice is a shared view.
   const task = getDocument({ data: new Uint8Array(bytes), verbosity: 0 });
   try {
     const document = await task.promise;
@@ -25,7 +21,6 @@ export async function getPdfPageSize(bytes: Uint8Array, pageNumber = 1): Promise
   }
 }
 
-/** Reads page sizes for every page of the document. */
 export async function getPdfPageSizes(bytes: Uint8Array): Promise<PageSize[]> {
   const task = getDocument({ data: new Uint8Array(bytes), verbosity: 0 });
   try {

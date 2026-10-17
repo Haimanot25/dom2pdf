@@ -1,7 +1,7 @@
 # Releasing
 
 dom2pdf uses semver. All workspace packages share one version (currently
-`0.1.0-alpha.0`) so a release is a single bump: `dom2pdf-js`,
+`0.1.0-alpha.1`) so a release is a single bump: `dom2pdf-js`,
 `dom2pdf-cli`, and `dom2pdf-benchmark` always match.
 
 ## Version bump

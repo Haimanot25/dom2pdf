@@ -150,8 +150,7 @@ class ConverterImpl implements Converter {
     const normalized = normalizeOptions(options);
     throwIfAborted(normalized.signal);
 
-    // Fail-fast back-pressure: no queuing, so callers control their own
-    // scheduling and never accumulate unbounded pending jobs.
+    // Fail-fast back-pressure: no queuing, so callers control scheduling.
     const max = this.maxConcurrentConversions;
     if (max !== undefined && this.activeConversions >= max) {
       throw new Dom2PdfError({
@@ -173,9 +172,8 @@ class ConverterImpl implements Converter {
     const log = this.logger.child("convert");
     const signal = normalized.signal;
 
-    // One overall deadline covers input preparation, navigation, and readiness
-    // checks; stages clamp to the remaining time instead of getting their own
-    // independent budget.
+    // One overall deadline covers input preparation, navigation, and
+    // readiness; stages clamp to the remaining time.
     const readinessDeadline = Deadline.in(normalized.readiness.timeoutMs);
 
     try {
@@ -184,15 +182,14 @@ class ConverterImpl implements Converter {
           async (page) => {
             const tracker = trackResources(page);
             // Failure forensics (opt-in): console/pageerror/network capture
-            // from the first moment the page exists, attached to the error
-            // when the conversion fails.
+            // from the first moment the page exists.
             const diagnosticsCapture = normalized.diagnostics ? installDiagnosticsCapture(page) : undefined;
             let guard: RequestGuard | undefined;
             try {
               const plan = await raceWithAbort(prepareInput(normalized), signal);
-              // Second security layer: every request the page makes beyond the
-              // pre-validated plan is classified at the network layer, and the
-              // request cap aborts floods in-flight.
+              // Second security layer: every request beyond the pre-validated
+              // plan is classified at the network layer; the request cap
+              // aborts floods in-flight.
               guard = await installRequestGuard(page, {
                 policy: {
                   allowLoopback: normalized.security.allowLoopback,
@@ -209,10 +206,9 @@ class ConverterImpl implements Converter {
               try {
                 await raceWithAbort(applyInput(page, plan, readinessDeadline.remainingMs()), signal);
               } catch (cause) {
-                // A policy-blocked redirect surfaces from `goto` as an
-                // ordinary net error — or, when the blocked address is
-                // unreachable, as the navigation deadline running out. The
-                // typed verdict outranks either.
+                // A policy-blocked redirect surfaces as an ordinary net error
+                // or as the deadline running out; the typed verdict outranks
+                // either.
                 if (
                   isDom2PdfError(cause) &&
                   (cause.code === "NAVIGATION_FAILED" || cause.code === "READINESS_TIMEOUT")
@@ -265,10 +261,8 @@ class ConverterImpl implements Converter {
                 warnings.push(...layoutWarnings(findings));
               }
 
-              // A deliberate `network-unsettled` conclusion may sit exactly on
-              // the deadline: readiness finished its essential checks and chose
-              // to warn rather than fail. Any other expiry is a genuine
-              // run-out of time before rendering.
+              // A `network-unsettled` conclusion may sit exactly
+              // on the deadline; any other expiry is a genuine run-out.
               if (!readiness.networkUnsettled) {
                 readinessDeadline.throwIfExpired(
                   "READINESS_TIMEOUT",
@@ -322,12 +316,9 @@ class ConverterImpl implements Converter {
                 });
               }
 
-              // Deterministic output (opt-in): zero the two PDF date stamps in
-              // place — a byte-length-preserving rewrite — so repeated
-              // conversions of the same input are byte-identical on the same
-              // browser build. The content digest over extracted page text
-              // lets callers verify "same content" independently of the
-              // stamps; a date span that cannot be normalized is reported as
+              // Deterministic output (opt-in): zero the PDF date stamps in
+              // place (byte-length-preserving) and hash the extracted page
+              // text; a span that cannot be normalized is reported as
               // `determinism.residual`, never hidden.
               let bytes = renderedBytes;
               let deterministic: DeterminismReport | undefined;
@@ -389,11 +380,9 @@ class ConverterImpl implements Converter {
                 });
               }
 
-              // Render-fidelity verification: re-rasterize the PDF inside
-              // Chromium (pdf.js) and compare sampled pages against live-page
-              // screenshots taken under the same media emulation. The phase
-              // degrades to `skipped` on infrastructure failure; only
-              // cancellation propagates.
+              // Render-fidelity verification: compare sampled PDF pages
+              // against live-page screenshots. Degrades to `skipped` on
+              // infrastructure failure; only cancellation propagates.
               let fidelity: FidelityReport | undefined;
               if (normalized.fidelity.enabled) {
                 fidelity = await measureFidelity({
@@ -407,7 +396,7 @@ class ConverterImpl implements Converter {
                 checks.push(fidelityParts.check);
                 warnings.push(...fidelityParts.warnings);
                 // The capture-viewport resize may have triggered new requests;
-                // drain and re-check the guard so policy verdicts still hold.
+                // re-check the guard so policy verdicts still hold.
                 await guard.drain();
                 const blockedAfterFidelity = guard.failure();
                 if (blockedAfterFidelity !== undefined) throw blockedAfterFidelity;
@@ -454,8 +443,8 @@ class ConverterImpl implements Converter {
               });
               return new ConversionResult(bytes, report);
             } catch (cause) {
-              // Forensics are best effort: they never mask, delay, or replace
-              // the original failure, and cancellation stays prompt.
+              // Forensics are best effort: they never mask or delay the
+              // original failure, and cancellation stays prompt.
               if (diagnosticsCapture !== undefined && !isCancellation(cause)) {
                 let bundle;
                 try {
@@ -491,8 +480,8 @@ class ConverterImpl implements Converter {
       );
     } catch (cause) {
       if (cause instanceof Dom2PdfError) throw cause;
-      // Plain failures are wrapped as BROWSER_FAILURE; carry any forensics
-      // that were attached to the original cause onto the typed error.
+      // Plain failures are wrapped as BROWSER_FAILURE, carrying any forensics
+      // attached to the original cause.
       const diagnostics = readAttachedDiagnostics(cause);
       throw new Dom2PdfError({
         code: "BROWSER_FAILURE",
@@ -510,9 +499,8 @@ class ConverterImpl implements Converter {
 }
 
 /**
- * Creates a converter. The Chromium process is launched lazily on the first
- * `convert()` call and reused across conversions; every conversion still gets
- * a brand-new isolated browser context.
+ * Creates a converter. Chromium launches lazily on the first `convert()`
+ * and is reused; every conversion gets a new isolated browser context.
  */
 export async function createConverter(options: CreateConverterOptions = {}): Promise<Converter> {
   const logger = options.logger ?? createLogger();

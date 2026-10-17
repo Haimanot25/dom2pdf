@@ -3,10 +3,8 @@ import type { NormalizedPdfOptions } from "../config/normalize.js";
 
 /**
  * Builds the option object for Playwright's `page.pdf()`.
- *
- * Only options Playwright actually supports are passed through (verified
- * against playwright@1.64.0 types); `undefined` fields fall back to Chromium's
- * documented defaults (zero margins, all pages, no header/footer).
+ * `undefined` fields fall back to Chromium's documented defaults (zero
+ * margins, all pages, no header/footer).
  */
 export function buildPdfOptions(pdf: NormalizedPdfOptions): NonNullable<Parameters<Page["pdf"]>[0]> {
   return {

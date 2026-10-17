@@ -15,12 +15,8 @@ export interface LayoutFindings {
 }
 
 /**
- * Measures DOM geometry before rendering to flag likely screen-mode problems:
- * horizontal overflow (extra pages/clipping), fixed/sticky elements (repeating
- * overlays), and nested scroll containers (hidden content).
- *
- * These are heuristics based on DOM coordinates — they do not reconstruct
- * Chromium's layout engine, and they never claim the PDF is visually wrong.
+ * Measures DOM geometry to flag screen-mode risks (horizontal overflow,
+ * fixed/sticky elements, scroll containers). DOM-coordinate heuristics only.
  */
 export async function analyzeScreenLayout(page: Page): Promise<LayoutFindings> {
   return page.evaluate((): LayoutFindings => {
@@ -53,7 +49,7 @@ export async function analyzeScreenLayout(page: Page): Promise<LayoutFindings> {
   });
 }
 
-/** Converts raw findings into heuristic quality warnings. Empty when nothing is off. */
+/** Converts findings into heuristic quality warnings; empty when none fire. */
 export function layoutWarnings(findings: LayoutFindings): QualityWarning[] {
   const warnings: QualityWarning[] = [];
 

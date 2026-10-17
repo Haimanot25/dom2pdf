@@ -5,7 +5,6 @@ export type EngineAvailability =
   | { available: true; detail?: string }
   | { available: false; reason: string };
 
-/** One measured conversion. */
 export interface EngineTimedRun {
   /** Wall-clock milliseconds for the whole conversion. */
   ms: number;
@@ -14,9 +13,8 @@ export interface EngineTimedRun {
 }
 
 /**
- * One benchmark engine. Lifecycle per run of the suite:
- * `probe()` once → for each scenario `prepare()` (untimed) → `run()` n times
- * (warm-up first, then measured) → `cleanup()` once, always.
+ * One benchmark engine. Lifecycle: `probe()` once, then per scenario
+ * `prepare()` (untimed) and `run()` n times (warm-up first), `cleanup()` once.
  */
 export interface BenchmarkEngine {
   /** Stable machine-readable name (used by `--engines`). */

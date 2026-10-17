@@ -9,36 +9,14 @@ import {
   type ResolvedAddress,
 } from "./destination-policy.js";
 
-/**
- * Browser-side request interception — the second, independent SSRF layer.
- *
- * Input-side checks classify the destination *before* the browser sees it;
- * this guard re-validates everything the page does afterwards:
- *
- * - HTTP redirect hops off the planned URL (`BLOCKED_REDIRECT`)
- * - page-scripted main-frame navigations to blocked destinations (`BLOCKED_URL`)
- * - every other request — subresources, iframes, popups (`BLOCKED_RESOURCE`)
- *
- * and enforces the per-conversion request cap (`RESOURCE_LIMIT_EXCEEDED`),
- * aborting further traffic at the network layer so a request flood actually
- * stops instead of merely being counted.
- *
- * Interception happens before Chromium performs DNS/connect for *routed*
- * requests, so blocked addresses receive no traffic at all. Redirect hops are
- * the exception: Playwright follows them inside Chromium's network stack and
- * never exposes them to `route`, so each hop's `Location` target is classified
- * asynchronously from response events instead — the typed verdict is still
- * produced (and the conversion fails), but the connection attempt to a blocked
- * redirect target happens natively first. Failed destinations are never
- * re-thrown as policy violations: a typo'd URL or DNS failure is left for the
- * browser to fail as an ordinary request.
- */
+/** Second SSRF layer: classifies requests after the input-side check, blocks
+ * policy rejections at the network layer, and enforces the request cap. */
 export interface RequestGuardOptions {
   /** Destination policy applied to every request beyond the pre-validated one. */
   policy: DestinationPolicy;
   /** Injectable DNS lookup (tests); results are cached per hostname. */
   dnsLookup?: DnsLookup;
-  /** URL already validated by `prepareInput` — requested as-is (includes `file:` for local input). */
+  /** URL already validated by `prepareInput`; requested as-is (includes `file:` for local input). */
   validatedUrl?: string | undefined;
   /** Per-conversion cap on http(s) requests; `undefined` = unlimited. */
   maxRequests?: number | undefined;
@@ -53,15 +31,11 @@ export interface RequestGuard {
   blockedNavigation: Dom2PdfError | undefined;
   /** First applicable failure: security blocks first, then the request cap. */
   failure(): Dom2PdfError | undefined;
-  /**
-   * Waits for any in-flight redirect-hop classifications (they are validated
-   * asynchronously from response events, see below) so `failure()` cannot
-   * miss a verdict that is still being computed.
-   */
+  /** Awaits in-flight redirect-hop classifications so `failure()` sees their verdicts. */
   drain(): Promise<void>;
   /** http(s) requests observed (favicon excluded), for report detail. */
   requestCount(): number;
-  /** Removes the interception route. Safe to call more than once. */
+  /** Detaches the response listener; the route dies with the context. Safe to call more than once. */
   dispose(): Promise<void>;
 }
 
@@ -91,12 +65,7 @@ function sameResource(a: string, b: string): boolean {
   }
 }
 
-/**
- * Teardown races are not failures: when the conversion is cancelled the
- * context closes underneath in-flight handlers. Anything else propagates —
- * the request then stays paused until the readiness deadline, which is loud,
- * never silent.
- */
+/** Context teardown closes targets under in-flight handlers; only those errors are ignored. */
 function isTeardownError(value: unknown): boolean {
   return (
     value instanceof Error &&
@@ -130,8 +99,7 @@ export async function installRequestGuard(page: Page, options: RequestGuardOptio
   let blockedResource: Dom2PdfError | undefined;
   let blockedNavigation: Dom2PdfError | undefined;
 
-  // One DNS answer per hostname per conversion: interception must not turn a
-  // request-heavy page into a DNS-heavy one.
+  // One DNS lookup per hostname per conversion, so interception does not multiply DNS traffic.
   const dnsCache = new Map<string, Promise<ResolvedAddress[]>>();
   const lookup: DnsLookup = (hostname) => {
     const cached = dnsCache.get(hostname);
@@ -148,9 +116,7 @@ export async function installRequestGuard(page: Page, options: RequestGuardOptio
     const request: Request = route.request();
     const url = request.url();
 
-    // data:/blob:/about: produce no network requests and never reach routes;
-    // the browser probes /favicon.ico on its own, which says nothing about
-    // the document (it is excluded from counting and classification alike).
+    // data:/blob:/about: URLs never reach routes; the browser's own /favicon.ico probe is excluded from counting and classification.
     if (!isHttpUrl(url) || isFavicon(url)) {
       await safeContinue(route);
       return;
@@ -163,8 +129,7 @@ export async function installRequestGuard(page: Page, options: RequestGuardOptio
       return;
     }
 
-    // The input-side destination was already classified (including file:
-    // URLs for local input) — do not reclassify the plan itself.
+    // Input-side classification already covered this URL (including file:); do not reclassify it.
     const validated = options.validatedUrl;
     if (validated !== undefined && sameResource(url, validated)) {
       await safeContinue(route);
@@ -178,8 +143,7 @@ export async function installRequestGuard(page: Page, options: RequestGuardOptio
         cause instanceof Dom2PdfError &&
         (cause.code === "BLOCKED_URL" || cause.code === "INVALID_INPUT");
       if (!isPolicyRejection) {
-        // DNS/lookup trouble, not a policy verdict: let the browser fail the
-        // request the way it would anyway.
+        // Lookup failure, not a policy verdict: let the browser fail the request.
         await safeContinue(route);
         return;
       }
@@ -218,20 +182,15 @@ export async function installRequestGuard(page: Page, options: RequestGuardOptio
 
   await context.route("**/*", handler);
 
-  // Redirect hops are the one gap in route interception: Playwright follows
-  // them inside Chromium's network stack, so `route` never sees the follow-up
-  // request. Instead every redirect response's `Location` target is classified
-  // here, the moment the redirect is issued. A blocked target records a typed
-  // verdict that fails the conversion (the navigation then dies natively —
-  // unreachable private addresses simply hang or error out).
+  // Playwright follows redirect hops inside Chromium's network stack, so `route` never sees them;
+  // each hop's `Location` target is classified from response events instead.
   const pendingRedirectChecks = new Set<Promise<void>>();
   const classifyRedirectTarget = (target: string, isMainFrameNavigation: boolean): void => {
     const task = (async () => {
       try {
         await assertUrlDestinationAllowed(target, options.policy, lookup);
       } catch (cause) {
-        // Only a policy verdict counts; DNS trouble leaves the failure to the
-        // browser, exactly like the routed path above.
+        // Lookup failures are left to the browser, as in the routed path.
         if (!(cause instanceof Dom2PdfError) || cause.code !== "BLOCKED_URL") return;
         const sanitized = sanitizeUrl(target);
         if (isMainFrameNavigation) {
@@ -270,13 +229,11 @@ export async function installRequestGuard(page: Page, options: RequestGuardOptio
     try {
       target = new URL(location, response.url()).toString();
     } catch {
-      // A malformed Location is not a destination we can classify; Chromium
-      // will fail the request on its own.
+      // Malformed Location cannot be classified; Chromium fails the request itself.
       return;
     }
-    // Non-http targets (file:, javascript:, …) are classified too: Chromium
-    // refuses the most dangerous of them natively, but the typed verdict is
-    // still more useful than the generic net error it produces.
+    // Non-http targets (file:, javascript:, …) are classified too: a typed verdict is recorded
+    // even though Chromium refuses most of them natively.
     const validated = options.validatedUrl;
     if (validated !== undefined && sameResource(target, validated)) return;
     const isMainFrameNavigation = request.isNavigationRequest() && request.frame() === page.mainFrame();
@@ -317,11 +274,8 @@ export async function installRequestGuard(page: Page, options: RequestGuardOptio
     dispose: async () => {
       if (disposed) return;
       disposed = true;
-      // Deliberately no `context.unroute`: Playwright's route teardown waits
-      // for in-flight paused requests, so a navigation hung on an unreachable
-      // redirect target would stall cleanup for its full timeout. The
-      // interception route belongs to the per-conversion context and dies
-      // with it; detaching our own listeners is all that is left to do.
+      // No `context.unroute`: its teardown waits for in-flight paused requests
+      // and would stall cleanup; the route dies with the per-conversion context.
       page.off("response", onResponse);
     },
   };

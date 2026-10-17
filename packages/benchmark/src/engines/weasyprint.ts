@@ -5,7 +5,7 @@ import path from "node:path";
 import type { BenchmarkScenario } from "../scenarios.js";
 import type { BenchmarkEngine, EngineAvailability, EngineTimedRun } from "./types.js";
 
-/** Result of spawning an external command — never throws for expected failures. */
+/** Result of spawning an external command; expected failures are values, not throws. */
 export type CommandOutcome =
   | { kind: "exit"; code: number; stdout: string; stderr: string }
   | { kind: "spawn-error"; error: string; notFound: boolean };
@@ -37,12 +37,8 @@ const INSTALL_HINT =
   "to include it; without it this engine is reported as skipped, never estimated";
 
 /**
- * WeasyPrint as an external process: `weasyprint input.html output.pdf`.
- *
- * It only runs if installed — the probe reports absence as an honest `skip`
- * with the install hint. Results are never fabricated when it is missing.
- * The command runner is injectable so the skip/exit paths are unit-testable
- * on machines without WeasyPrint.
+ * WeasyPrint as an external process: `weasyprint input.html output.pdf`. A
+ * missing install is skipped with the install hint; the runner is injectable.
  */
 export function createWeasyPrintEngine(runner: CommandRunner = defaultRunner): BenchmarkEngine {
   let workDir: string | undefined;

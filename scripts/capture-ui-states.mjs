@@ -1,5 +1,5 @@
-// One-off QA: capture the redesigned web UI states headlessly (light + dark)
-// for visual review. Uses the already-running local server.
+// One-off QA: captures web UI states headlessly (light + dark) for visual
+// review, against an already-running server.
 import { chromium } from "playwright";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";

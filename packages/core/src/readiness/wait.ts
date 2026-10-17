@@ -5,76 +5,42 @@ import type { NetworkActivity } from "./tracking.js";
 import type { Deadline } from "../utils/deadline.js";
 
 /**
- * Readiness phase: after navigation, wait for the things that make a capture
- * trustworthy — lazy content drained, fonts settled, images finished, network
- * quiet, a selector visible — all under the single shared readiness deadline.
+ * Readiness phase: after navigation, wait for what makes a capture
+ * trustworthy — lazy content drained, fonts settled, images finished,
+ * network quiet, selector visible — under one shared deadline.
  *
- * Waiting is *adaptive*: each pending image gets its own `slowResourceMs`
- * patience (measured from its real request start) and is reported as slow
- * instead of spending the whole shared deadline, so one hanging asset costs a
- * `resources.slow` warning rather than a `READINESS_TIMEOUT`. The lazy sweep
- * walks the document so scroll-driven content — lazy markers, infinite
- * scroll, and reveal-on-scroll animations — is actually present before the
- * capture. The sweep is enrichment under a bounded budget: it stops and
- * reports `truncated` rather than spending the deadline the essential checks
- * (fonts, images, network quiet) still need, so it never fails a conversion.
- * The shared deadline still bounds everything; whichever essential stage
- * gives out is named in the error.
+ * Each pending image gets its own `slowResourceMs` patience and surfaces as
+ * `resources.slow` instead of spending the shared deadline; the lazy sweep
+ * is bounded enrichment and reports `truncated` rather than failing.
  */
 
 export interface ImageState {
-  /** `<img>` elements that declare a non-empty `src`. */
+  /** `<img>` elements with a non-empty `src`. */
   total: number;
-  /** Finished loading with at least one decoded pixel. */
+  /** Finished with at least one decoded pixel. */
   loaded: number;
   /** Started but not finished at measurement time. */
   pending: number;
-  /** Absolute URLs of the pending images (superset of `slowUrls`). */
+  /** Absolute URLs of pending images (superset of `slowUrls`). */
   pendingUrls: string[];
-  /** Absolute URLs of images that finished in a failed/broken state. */
+  /** Absolute URLs of images that finished broken. */
   brokenUrls: string[];
-  /**
-   * Pending images the readiness phase gave up on after their individual
-   * `slowResourceMs` patience — the conversion proceeded without them and
-   * reports a `resources.slow` warning.
-   */
+  /** Pending images past their individual patience; the conversion proceeds without them (`resources.slow`). */
   slowUrls: string[];
 }
 
 export interface LazySweepState {
-  /**
-   * Whether the sweep ran. It runs for every scrollable document, because
-   * scroll drives three different lazy behaviors: `loading="lazy"` markers,
-   * fetch-on-scroll content (infinite scroll), and reveal-on-scroll animations
-   * (Wix/AOS/wow-style sections that sit at `opacity: 0` until an
-   * IntersectionObserver fires — otherwise they print as blank space).
-   */
+  /** Whether the sweep ran (scrollable documents only). */
   performed: boolean;
   /** Scroll steps performed. */
   steps: number;
-  /** The document kept appending content (infinite scroll) until the step limit. */
+  /** The document kept appending content until the step limit. */
   truncated: boolean;
-  /**
-   * What stopped a truncated sweep: `step-limit` (pages that keep growing)
-   * or `time-budget` (the sweep spent its bounded share of the readiness
-   * deadline — it stops so the essential checks after it — fonts, images,
-   * network quiet — still get the rest, instead of failing the conversion
-   * at this stage). `null` when the sweep ran to completion.
-   */
+  /** `step-limit` (page keeps growing), `time-budget` (sweep's deadline share spent), or `null` when complete. */
   truncationReason: "step-limit" | "time-budget" | null;
-  /**
-   * Large elements (at least 100px tall) that were invisible — computed
-   * opacity below 0.1 or `visibility: hidden` — when the sweep started.
-   */
+  /** Large elements (≥100px tall) invisible when the sweep started. */
   hiddenBeforeSweep: number;
-  /**
-   * The same count after the sweep and its reveal-tail settle. When it is
-   * lower than `hiddenBeforeSweep`, scroll made previously hidden blocks
-   * visible — the reveal-on-scroll pattern this sweep exists to defeat.
-   * A residual count usually means intentional decorative layers; it is
-   * reported in the readiness detail so a blank-space mystery is visible
-   * without claiming it is always a defect.
-   */
+  /** Same count after the sweep; a drop means reveal-on-scroll blocks became visible, a residual is usually decorative layers. */
   hiddenAfterSweep: number;
 }
 
@@ -89,23 +55,13 @@ export interface ReadinessResult {
   unavailableFonts: string[];
   /** Satisfied network-idle window in ms (`0` = check disabled). */
   networkIdleMs: number;
-  /**
-   * The network wait ended without a quiet window (chatty trackers, or the
-   * deadline expired with nothing in flight). The conversion proceeded with
-   * a `readiness.network-unsettled` warning — readiness reports this instead
-   * of failing, because everything essential (fonts, images, selector) had
-   * already been judged by then.
-   */
+  /** The network wait ended without a quiet window; readiness reports this as a warning instead of failing. */
   networkUnsettled: boolean;
   /** Selector that became visible, when requested. */
   selector: string | undefined;
   /** Satisfied settle window in ms (`0` = no settle requested). */
   settledMs: number;
-  /**
-   * In-flight http(s) requests that outlived their individual patience when
-   * readiness finished — the hung assets the conversion proceeded without.
-   * Reported as warnings; empty when nothing outlasted patience.
-   */
+  /** In-flight requests that outlived their patience — the hung assets the conversion proceeded without. */
   stalledUrls: string[];
 }
 
@@ -124,10 +80,8 @@ function isTimeoutError(value: unknown): boolean {
 /** Rejects with `READINESS_TIMEOUT` if `promise` has not settled by the deadline. */
 async function withDeadline<T>(promise: Promise<T>, deadline: Deadline, stage: string): Promise<T> {
   if (deadline.expired) {
-    // The caller created `promise` before calling (it is the argument), so it
-    // may already be in flight — abandon it *safely*. Without this catch, its
-    // later rejection (e.g. "Target closed" when the context closes) is
-    // unhandled, which kills the Node process.
+    // The promise may already be in flight; abandon it or its later
+    // rejection ("Target closed") becomes unhandled and kills the process.
     promise.catch(() => undefined);
     throw readinessTimeout(stage, deadline);
   }
@@ -146,37 +100,23 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// How long the network stage waits for its quiet window before judging the
-// traffic pattern (found on live news homepages: analytics/tag managers keep
-// the activity clock fresh forever, so a quiet window never arrives while
-// nothing is actually transferring). Past this budget, a stage that is
-// *transferring* keeps waiting for the deadline, while a stage that is only
-// chatty stops waiting and reports an honest `readiness.network-unsettled`
-// warning instead of burning the rest of the deadline for no information.
-// The busy share is judged across 25ms samples — never one instant — so a
-// momentary request cannot flip the verdict.
+// Stage budget for the network quiet window: tag managers keep the activity
+// clock fresh forever, so a quiet window may never arrive while nothing is
+// actually transferring. Past the budget a transferring stage keeps waiting
+// for the deadline; a chatty stage reports `readiness.network-unsettled`.
+// The busy share is judged across 25ms samples, never one instant.
 const NETWORK_QUIET_STAGE_BUDGET_MS = 4_000;
 const NETWORK_CHURN_BUSY_SHARE = 0.5;
 
 /**
- * Waits until no http(s) request is in flight and nothing has happened on the
- * network for `idleMs`, measured from the tracker that has been watching since
- * before navigation — so requests already in flight when readiness starts
- * count. Requests older than the per-resource patience are presumed hung and
- * do not block (they surface as `resources.slow` instead).
+ * Waits until no http(s) request is in flight and the network has been
+ * quiet for `idleMs`, counted from the tracker watching since before
+ * navigation. Requests past `patienceMs` are presumed hung and do not block.
  *
- * Returns how the wait ended:
- * - `settled` — a real quiet window arrived.
- * - `unsettled` — the stage budget elapsed on pure request churn (nothing
- *   transferring, but no quiet window the page's trackers will ever allow),
- *   or the deadline expired with nothing in flight. Capture proceeds with a
- *   warning; the caller reports it, never silently.
- *
- * Throws `READINESS_TIMEOUT` when the deadline expires with requests
- * genuinely awaiting a response — or when the stage spent most of its samples
- * transferring (busy share ≥ `NETWORK_CHURN_BUSY_SHARE`): the page really was
- * still loading, which is what the timeout advice in the error message is
- * for. Only a stage that was mostly *idle-but-chatty* degrades to `unsettled`.
+ * Returns `settled` when a quiet window arrived, `unsettled` when the stage
+ * budget elapsed on pure churn (capture proceeds with a warning). Throws
+ * `READINESS_TIMEOUT` when the deadline expires with requests genuinely
+ * awaiting a response, or when the stage was mostly transferring.
  */
 async function waitForNetworkQuiet(
   activity: NetworkActivity,
@@ -196,13 +136,9 @@ async function waitForNetworkQuiet(
     if (blocking === 0 && now - activity.lastActivityAt() >= idleMs) return "settled";
 
     if (deadline.expired) {
-      // Requests awaiting a response = the page is still loading: this is
-      // the deadline failure the timeout advice is for. Same when the stage
-      // was *mostly* transferring and one idle sample happened to land on
-      // the deadline — the verdict comes from the busy share across the
-      // whole stage, never one instant. Pure request churn (analytics
-      // beacons refreshing the activity clock, nothing transferring) is not
-      // a loading failure: stop waiting, capture, report.
+      // Requests awaiting a response mean the page is still loading — the
+      // failure the timeout advice is for. Pure churn (beacons refreshing
+      // the activity clock, nothing transferring) is not: capture instead.
       if (blocking > 0 || busySamples / totalSamples >= NETWORK_CHURN_BUSY_SHARE) {
         throw readinessTimeout("network", deadline);
       }
@@ -248,13 +184,10 @@ async function collectImages(page: Page): Promise<ImageState> {
 }
 
 /**
- * Waits (when requested) for pending images — but each image gets its own
- * patience instead of the whole stage sharing one deadline: an image whose
- * request started (or that was first seen pending) more than `slowResourceMs`
- * ago is moved to `slowUrls` and no longer blocks. The conversion then
- * proceeds with a `resources.slow` warning, which is what makes hanging
- * assets cost a footnote instead of the whole conversion. With patience `0`
- * the old behavior stands: pending images block until the shared deadline.
+ * Waits for pending images, each under its own patience instead of one
+ * shared budget: an image older than `slowResourceMs` moves to `slowUrls`
+ * and stops blocking, so a hanging asset costs a warning rather than the
+ * whole conversion. Patience `0` blocks until the shared deadline.
  */
 async function resolveImages(
   page: Page,
@@ -266,15 +199,14 @@ async function resolveImages(
   const firstPendingAt = new Map<string, number>();
   const slow = new Set<string>();
 
-  /** Pending images that are still within their individual patience. */
+  /** Pending images still within their individual patience. */
   const blockingUrls = (): string[] => {
     const now = Date.now();
     const blocking: string[] = [];
     for (const url of state.pendingUrls) {
       if (slow.has(url)) continue;
       if (!firstPendingAt.has(url)) firstPendingAt.set(url, now);
-      // Real request start when the request is in flight; the first-observed
-      // time otherwise (e.g. a lazy image that never started fetching).
+      // Real request start when in flight; first-observed time otherwise.
       const startedAt = activity.requestStartAt(url) ?? firstPendingAt.get(url) ?? now;
       if (options.slowResourceMs > 0 && now - startedAt >= options.slowResourceMs) {
         slow.add(url);
@@ -299,46 +231,29 @@ async function resolveImages(
 const LAZY_MAX_STEPS = 30;
 const LAZY_STEP_IDLE_MS = 120;
 const LAZY_STEP_MAX_WAIT_MS = 2_500;
-// A short dwell after each scroll step. IntersectionObserver callbacks are
-// delivered on rendering steps after the scroll (the two requestAnimationFrame
-// waits cover that), but many reveal systems drive their triggers from
-// throttled scroll handlers (~100-250ms timers). Calibrated against a live
-// Wix site: at 80ms the throttled handlers coalesced steps and permanently
-// skipped sections (they stayed at opacity 0 in the PDF); at 200ms every
-// section revealed. The cost lands only on scrollable pages, one dwell per
-// viewport step, and `readiness.lazyLoad: false` opts out entirely.
+// Dwell so throttled scroll handlers (~100-250ms) notice the new position;
+// shorter values coalesced steps and left sections unrevealed.
 const LAZY_STEP_DWELL_MS = 200;
-// Mid-walk settle allowance. The triggered burst does not have to *finish*
-// here — the images/network stages after the sweep own final settling — it
-// only has to get the next step a stable document. Kept small because these
-// waits multiply: measured on a live site, a full 2.5s-cap wait per step
-// over ~18 steps consumed the entire 30s readiness deadline and failed the
-// conversion at the lazy-load stage even though the page itself settles in
-// under 4s. The bottom-settle (growth check) still gets the full cap —
-// fetch-on-scroll appends must land before the height is re-read.
+// Mid-walk settle, kept small because these waits multiply across steps;
+// the images/network stages after the sweep own final settling. The
+// bottom-settle (growth check) still gets the full cap.
 const LAZY_STEP_SETTLE_MS = 600;
-// The sweep is enrichment, not a gate: it may spend at most this fraction
-// of the readiness deadline still remaining when it starts, and never more
-// than `remaining - LAZY_SWEEP_MIN_RESERVE_MS` — the essential checks that
-// follow always keep at least the reserve. Out of budget, the sweep stops
-// honestly (truncated, `time-budget`) instead of throwing.
+// The sweep may spend at most this fraction of the remaining readiness
+// deadline, never past the reserve the essential checks after it keep.
 const LAZY_SWEEP_BUDGET_FRACTION = 0.5;
 const LAZY_SWEEP_MIN_RESERVE_MS = 1_500;
-// Reveals can land slightly after the sweep ends (a throttled handler fires
-// within a beat of the final scroll). One bounded tail wait after restoring
-// the scroll position lets those transitions apply the visible class before
-// we judge the page and capture it. Only paid when the sweep actually made
-// blocks visible — static pages never wait.
+// One bounded tail wait lets throttled reveals apply their visible class
+// before the hidden count and the capture; only paid when the sweep made
+// blocks visible.
 const LAZY_REVEAL_TAIL_MS = 500;
-// Below this much deadline left, skip the post-sweep hidden-element count —
-// it is a diagnostic, never worth failing a page that is otherwise ready.
+// Below this much deadline left, skip the post-sweep hidden count — it is
+// a diagnostic, never worth failing a ready page.
 const LAZY_HIDDEN_PROBE_MIN_MS = 200;
 
 /**
- * Resolves once the network has been quiet for `idleMs`, or `false` when the
- * quiet window did not arrive within `maxWaitMs` (used by the lazy sweep,
- * where a step that brings nothing new must still make progress). Requests
- * older than `patienceMs` count as hung and do not block.
+ * Resolves once the network has been quiet for `idleMs`, or `false` when
+ * the quiet window did not arrive within `maxWaitMs`. Requests older than
+ * `patienceMs` count as hung and do not block.
  */
 async function waitForQuietWindow(
   activity: NetworkActivity,
@@ -356,10 +271,10 @@ async function waitForQuietWindow(
 }
 
 /**
- * Counts large elements (at least 100px tall) that are invisible right now
- * — computed opacity below 0.1 or `visibility: hidden`. Page-side code
- * cannot share closures across `evaluate` calls, so this walk repeats the
- * one in `drainLazyContent`'s pre-scan verbatim.
+ * Counts large elements (≥100px tall) that are invisible now — opacity
+ * below 0.1 or `visibility: hidden`. Repeats the `drainLazyContent`
+ * pre-scan walk verbatim: page-side code cannot share closures across
+ * `evaluate` calls.
  */
 async function countHiddenLarge(page: Page, deadline: Deadline): Promise<number> {
   return withDeadline(
@@ -379,32 +294,15 @@ async function countHiddenLarge(page: Page, deadline: Deadline): Promise<number>
 }
 
 /**
- * Lazy-load drain: a bounded scroll sweep that walks the document before the
- * other checks. Scrolling drives three different lazy behaviors, and the
- * sweep handles all of them:
+ * Lazy-load drain: a bounded scroll sweep before the other checks. One
+ * sweep covers lazy images/iframes, fetch-on-scroll content (infinite
+ * scroll), and reveal-on-scroll animations (sections at `opacity: 0` that
+ * otherwise print as blank space).
  *
- * 1. `loading="lazy"` images/iframes and `data-src`-style markup fetch when
- *    they approach the viewport.
- * 2. Fetch-on-scroll content (infinite scroll): pages that append when the
- *    bottom is reached. The sweep re-checks the document height at the bottom
- *    after the triggered burst settles and keeps walking into appended
- *    content.
- * 3. Reveal-on-scroll animations (Wix/AOS/wow-style): sections that sit in
- *    the layout at `opacity: 0` until an IntersectionObserver fires. Without
- *    the sweep they print as blank space — a failure mode every headless
- *    print pipeline ships silently today.
- *
- * Guard rails: it only runs for scrollable documents (short pages pay
- * nothing; a long static page pays roughly one walk-step per viewport, a
- * few hundred ms, and `readiness.lazyLoad: false` opts out entirely), each
- * mid-walk step settles at most `LAZY_STEP_SETTLE_MS` (the bottom growth
- * check gets `LAZY_STEP_MAX_WAIT_MS`), the sweep stops after `LAZY_MAX_STEPS`
- * (reporting `truncated`/`step-limit` for pages that keep growing) **and**
- * after spending its bounded share of the readiness deadline (reporting
- * `truncated`/`time-budget` so the essential checks after it still get the
- * reserve — a slow sweep costs a warning, never a conversion failure), the
- * request cap and the shared deadline still bound every wait, and the scroll
- * position is always restored.
+ * Only scrollable documents pay; `readiness.lazyLoad: false` opts out.
+ * The sweep stops at the step limit or its deadline share, reporting
+ * `truncated` — it never fails a conversion — and always restores the
+ * scroll position.
  */
 async function drainLazyContent(
   page: Page,
@@ -420,15 +318,11 @@ async function drainLazyContent(
     hiddenBeforeSweep: 0,
     hiddenAfterSweep: 0,
   };
-  // An already-expired deadline skips the sweep rather than failing here:
-  // the sweep is enrichment, so a later stage should name the real
-  // bottleneck (and the advice to raise `timeoutMs` actually applies).
+  // An expired deadline skips the sweep so a later stage names the real
+  // bottleneck.
   if (!options.lazyLoad || deadline.expired) return idle;
 
-  // One evaluate: is this a scrollable document, and how much large content
-  // is invisible up front (the reveal-on-scroll baseline)? The count walks
-  // every element, so it merges into the scrollable check to stay a single
-  // round-trip.
+  // One evaluate: scrollable check plus the reveal-on-scroll baseline.
   const scan = await withDeadline(
     page.evaluate(() => {
       const root = document.scrollingElement ?? document.documentElement;
@@ -446,14 +340,9 @@ async function drainLazyContent(
   );
   if (!scan.scrollable) return idle;
 
-  // Budget: the sweep may spend at most this share of the readiness
-  // deadline still on the clock, and never past the reserve — the checks
-  // after it (fonts, images, network quiet) always keep
-  // `LAZY_SWEEP_MIN_RESERVE_MS`. Measured on a live site: without this,
-  // per-step settle waits over ~18 steps consumed the whole 30s deadline
-  // and failed the conversion at this stage even though the page itself
-  // settles in under 4s. Below a usable budget the sweep does not run at
-  // all; a later stage then reports the true state of the page.
+  // Budget: this share of the remaining deadline, capped at the reserve the
+  // checks after it (fonts, images, network quiet) keep. Below a usable
+  // budget the sweep does not run at all.
   const remainingAtStart = deadline.remainingMs();
   const budgetMs = Math.min(
     Math.floor(remainingAtStart * LAZY_SWEEP_BUDGET_FRACTION),
@@ -470,9 +359,7 @@ async function drainLazyContent(
   let truncationReason: "step-limit" | "time-budget" | null = null;
   try {
     for (;;) {
-      // Out of budget (or the hard deadline arrived anyway): stop and
-      // report. The sweep never fails a conversion — the reserve lets the
-      // essential checks complete, so a slow sweep costs a warning.
+      // Out of budget: stop and report; the sweep never fails a conversion.
       if (Date.now() - sweepStartedAt >= budgetMs || deadline.expired) {
         truncated = true;
         truncationReason = "time-budget";
@@ -488,18 +375,14 @@ async function drainLazyContent(
         const heightBefore = root.scrollHeight;
         const remaining = heightBefore - (window.scrollY + window.innerHeight);
         const stepPx = Math.max(24, Math.floor(window.innerHeight * fraction));
-        // `behavior: "instant"` defeats pages with `scroll-behavior: smooth`,
-        // which would otherwise animate and make each step race the next.
+        // `behavior: "instant"` defeats `scroll-behavior: smooth` pages,
+        // which would otherwise animate and race the next step.
         window.scrollTo({ top: window.scrollY + stepPx, behavior: "instant" });
         return { atBottom: remaining <= 4, heightBefore };
       }, 0.9);
       steps += 1;
-      // IntersectionObserver callbacks and lazy-load triggers are delivered on
-      // rendering steps after the scroll — without letting two frames pass,
-      // a fast sweep can scroll past a section (and restore the position)
-      // before the page ever learns it was in view. The dwell additionally
-      // gives throttled scroll handlers (many reveal-on-scroll systems)
-      // wall-clock time to notice the new position.
+      // Lazy triggers fire on rendering steps after the scroll; two frames
+      // plus the dwell give throttled handlers time to notice.
       await page.evaluate(
         () =>
           new Promise<void>((resolve) => {
@@ -508,12 +391,8 @@ async function drainLazyContent(
       );
       await sleep(LAZY_STEP_DWELL_MS);
       if (step.atBottom) {
-        // At the bottom, fetch-on-scroll pages append *after* the scroll
-        // arrives: this settle gets the full cap (budget/deadline-capped)
-        // so the triggered append lands before the height re-check. Growth
-        // means newly appended content below — keep walking into it; pages
-        // that grow forever hit the step cap, and an exhausted budget stops
-        // with `truncated`/`time-budget`.
+        // Fetch-on-scroll pages append after the scroll arrives: settle with
+        // the full cap, then re-check the height; growth means keep walking.
         await waitForQuietWindow(
           activity,
           LAZY_STEP_IDLE_MS,
@@ -526,11 +405,8 @@ async function drainLazyContent(
         if (heightAfter > step.heightBefore + 4) continue;
         break;
       }
-      // Mid-walk: give the burst this step triggered a short settle so the
-      // next step walks a stable document. It does not have to finish here —
-      // the images/network stages after the sweep own final settling — and
-      // this small fixed cap is what keeps a page with trickling requests
-      // from spending the shared deadline in these waits.
+      // Mid-walk: let the triggered burst settle so the next step walks a
+      // stable document.
       await waitForQuietWindow(
         activity,
         LAZY_STEP_IDLE_MS,
@@ -544,19 +420,13 @@ async function drainLazyContent(
     );
   }
 
-  // Diagnostic only: how much large content is still invisible after the
-  // sweep? Usually intentional decorative layers, but when a reveal system
-  // resisted the sweep this is the number that explains blank PDF space.
-  // Skipped when the deadline is nearly spent — never fail a ready page
-  // over a hint.
+  // Diagnostic: large content still invisible after the sweep. Skipped when
+  // the deadline is nearly spent.
   let hiddenAfterSweep = 0;
   if (deadline.remainingMs() >= LAZY_HIDDEN_PROBE_MIN_MS) {
     hiddenAfterSweep = await countHiddenLarge(page, deadline);
-    // A drop below the baseline means the sweep triggered reveals; their
-    // handlers may still be settling (throttled scroll callbacks fire
-    // within a beat of the last scroll). One bounded tail wait lets those
-    // reveals land before the count — and before the capture that follows
-    // readiness. Pages where nothing was revealed never wait.
+    // A drop below the baseline means reveals triggered; one bounded tail
+    // wait lets their throttled handlers land. Static pages never wait.
     if (
       hiddenAfterSweep < scan.hidden &&
       deadline.remainingMs() >= LAZY_HIDDEN_PROBE_MIN_MS + LAZY_REVEAL_TAIL_MS
@@ -576,11 +446,10 @@ async function drainLazyContent(
 }
 
 /**
- * Runs the configured readiness checks in order (selector → fonts → required
- * fonts → images → network quiet → settle). Each step clamps to the remaining
- * deadline; the returned result feeds the `readiness` quality check and the
- * resource warnings. `activity` is the tracker's pre-navigation view of the
- * network — never listeners attached after the fact.
+ * Runs the configured readiness checks in order (selector → fonts →
+ * required fonts → images → network quiet → settle), each clamped to the
+ * remaining deadline. `activity` is the tracker's pre-navigation view of
+ * the network, never listeners attached after the fact.
  */
 export async function waitForReadiness(
   page: Page,
@@ -632,18 +501,17 @@ export async function waitForReadiness(
         for (const family of families) {
           const normalized = family.replace(/["']/g, "").toLowerCase();
           try {
-            // Triggers loading of matching @font-face declarations; settles
-            // when loading finishes (including failures).
+            // Triggers loading of matching @font-face declarations;
+            // settles including failures.
             await document.fonts.load(`16px "${family}"`, "AaBb0123");
           } catch {
             // Load failure (bad URL, parse error): the font is unavailable.
             unavailable.push(family);
             continue;
           }
-          // Judge only what the browser actually declares. `fonts.check()`
-          // alone is not enough: Chromium answers true for families with no
-          // @font-face at all (no fetch needed — system font *or* fallback),
-          // so an absent family must not be reported from `check()`.
+          // `fonts.check()` alone is not enough: Chromium answers true for
+          // families with no @font-face at all, so only declared faces
+          // count.
           const declared: FontFace[] = [];
           document.fonts.forEach((face) => {
             if (face.family.replace(/["']/g, "").toLowerCase() === normalized) declared.push(face);
@@ -675,18 +543,14 @@ export async function waitForReadiness(
   }
 
   let settledMs = 0;
-  // The settle beat is enrichment: when the clock is already out (only
-  // reachable via the network stage's deliberate `unsettled` conclusion or a
-  // last-millisecond race), sleeping past the deadline would fail a
-  // conversion readiness decided to finish with a warning. Any genuine
-  // run-out is still caught by the deadline guard after readiness returns.
+  // The settle beat is enrichment; sleeping past an already-expired
+  // deadline would fail a conversion readiness decided to finish with a
+  // warning. A genuine run-out is caught by the deadline guard after.
   if (options.settleMs > 0 && !deadline.expired) {
     await withDeadline(sleep(options.settleMs), deadline, "settle");
     settledMs = options.settleMs;
   }
 
-  // After every wait: which requests are still in flight beyond their
-  // patience? These are assets the conversion is proceeding without.
   const stalledUrls =
     options.slowResourceMs > 0 ? activity.stalledUrls(options.slowResourceMs) : [];
 

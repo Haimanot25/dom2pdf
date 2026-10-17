@@ -9,13 +9,8 @@ import { buildPdfOptions } from "./pdf-options.js";
 import type { RenderContext, RenderResult, Renderer } from "./types.js";
 
 /**
- * Document-mode renderer: Chromium's native print-to-PDF with print media.
- *
- * `page.pdf()` has no timeout parameter (verified against playwright@1.64.0),
- * so the render is raced against dom2pdf's own deadline; on timeout or
- * cancellation the surrounding context close aborts the in-flight CDP call.
- * Animations are fast-forwarded to their settled end state first, so the
- * capture shows the finished page rather than a mid-animation frame.
+ * Document renderer: Chromium print-to-PDF with print media.
+ * `page.pdf()` accepts no timeout, so it is raced against the deadline; cancel/timeout closes the context to abort the CDP call.
  */
 export const documentRenderer: Renderer = {
   mode: "document",
@@ -27,9 +22,7 @@ export const documentRenderer: Renderer = {
     );
 
     const pdfOptions = buildPdfOptions(options.pdf);
-    // The geometry print pagination works against: `page.pdf()` lays the
-    // document out at contentWidth/scale and fits contentHeight/scale CSS px
-    // of content per page — the budget the keep-together marking guards.
+    // `page.pdf()` lays out at contentWidth/scale and fits contentHeight/scale CSS px per page.
     const geometry = computePrintGeometry(options.pdf);
     logger.debug("Rendering PDF", { mode: "document", timeoutMs: options.render.timeoutMs });
 

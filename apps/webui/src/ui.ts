@@ -1,19 +1,15 @@
 /**
- * The embedded single-page UI. Self-contained (inline CSS/JS, no external
- * assets) so it works offline and cannot pull anything unexpected — this is a
- * security tool as much as a convenience.
+ * The embedded single-page UI. Self-contained inline CSS/JS (no external
+ * assets), dark-first with a prefers-color-scheme light variant.
  *
- * Contract relied on by tests (apps/webui/test + tests/webui.spec.ts):
- * `h1` text is exactly "dom2pdf", the page contains "/api/convert" and
- * "Convert to PDF", and these ids keep working with the same show/hide
- * mechanism: #form #submit #btnLabel #status #url #mode #format #tolerant
- * #keepTogether #result #pages #size #duration #modeOut #warnings #fidelity
- * #open #download #error #errcode #errmsg #errhint #forensics — plus the
- * fidelity line wording ("Fidelity: mean SSIM", "not a pixel-perfectness
- * claim") and the "fidelity ok" / "fidelity warn" class pair.
- *
- * Theme: dark by default, follows prefers-color-scheme for light mode; all
- * colors live in CSS custom properties.
+ * Test contract (apps/webui/test + tests/webui.spec.ts): `h1` is exactly
+ * "dom2pdf", the page contains "/api/convert" and "Convert to PDF", and the
+ * ids #form #submit #btnLabel #status #url #mode #format #tolerant
+ * #keepTogether #result #pages #size #duration #modeOut #warnings
+ * #fidelity #open #download #error #errcode #errmsg #errhint #forensics,
+ * the .show mechanism, and the "fidelity ok"/"fidelity warn" class pair keep
+ * working; the fidelity line says "Fidelity: mean SSIM" and "not a
+ * pixel-perfectness claim".
  */
 export function renderUi(): string {
   return `<!doctype html>
@@ -444,7 +440,7 @@ export function renderUi(): string {
   }
 
   // Playwright's failure text embeds ANSI color codes (call-log styling);
-  // in plain text they render as garbage glyphs, so strip them for display.
+  // strip them so the message renders as plain text.
   function stripAnsi(s) {
     return String(s).replace(/\\u001b\\[[0-9;]*m/g, "");
   }
@@ -466,10 +462,9 @@ export function renderUi(): string {
     statusLine.textContent = "";
   }
 
-  // Summarizes the failure-forensics bundle (details.diagnostics) the server
-  // always collects: uncaught page errors, console errors/warnings, and
-  // failed requests at the moment of failure. The screenshot and DOM are in
-  // the bundle too but stay out of this summary.
+  // Summarizes the forensics bundle (details.diagnostics): uncaught page
+  // errors, console errors/warnings, and failed requests at failure time.
+  // Screenshot and DOM stay out of this summary.
   function forensicsText(details) {
     var bundle = details && details.diagnostics;
     if (!bundle) return "";

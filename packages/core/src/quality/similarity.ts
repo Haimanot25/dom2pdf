@@ -1,17 +1,6 @@
 /**
- * Pure image-similarity primitives behind the render-fidelity phase.
- *
- * These functions are deliberately self-contained: they take plain
- * `{ data, width, height }` images (any RGBA byte buffer plus dimensions),
- * import nothing, and close over nothing outside their own bodies. That lets
- * the fidelity pipeline stringify them into the verification Chromium page
- * (where the PDF is re-rasterized with pdf.js and compared against live-page
- * screenshots) while the exact same source is unit-tested in Node against
- * synthetic arrays. Keep them free of imports and module-scope state.
- *
- * All metrics run on grayscale images. `computeSsim` expects inputs that were
- * already converted with `toGray` (and typically softened with `boxBlur3`);
- * the caller applies blur/resize so each step stays individually testable.
+ * Must stay free of imports and module-scope state: the fidelity phase stringifies them into
+ * the verification page while the same source is unit-tested in Node.
  */
 
 export interface GrayImage {
@@ -37,7 +26,6 @@ export function toGray(image: RgbaImage): GrayImage {
     const g = image.data[o + 1] ?? 0;
     const b = image.data[o + 2] ?? 0;
     const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-    // Transparent source pixels show the page background (white paper).
     out[i] = luminance * alpha + 255 * (1 - alpha);
   }
   return { data: out, width, height };
@@ -68,12 +56,8 @@ export function boxBlur3(image: GrayImage): GrayImage {
   return { data: out, width, height };
 }
 
-/**
- * Bilinearly resizes the vertical window `[sourceY, sourceY + sourceHeight)` of
- * the image to `targetWidth x targetHeight`. Sampling outside the image clamps
- * to the edge row, so a scroll-clamped strip or a raster taller than its strip
- * still compares cleanly.
- */
+/** Bilinearly resizes the vertical window `[sourceY, sourceY + sourceHeight)` to
+ * `targetWidth x targetHeight`; samples outside the image clamp to the edge row. */
 export function resizeWindow(
   image: GrayImage,
   sourceY: number,
@@ -104,11 +88,8 @@ export function resizeWindow(
   return { data: out, width: targetWidth, height: targetHeight };
 }
 
-/**
- * Mean structural similarity over 8x8 windows (stride 4) of two equally sized
- * grayscale images. Returns 1 for identical images, ~0 for uncorrelated ones,
- * and can go negative for strongly inverted content.
- */
+/** Mean SSIM over 8x8 windows (stride 4) of two equally sized grayscale images.
+ * 1 = identical, ~0 = uncorrelated, negative for strongly inverted content. */
 export function computeSsim(a: GrayImage, b: GrayImage): number {
   if (a.width !== b.width || a.height !== b.height) {
     throw new Error(`SSIM size mismatch: ${a.width}x${a.height} vs ${b.width}x${b.height}`);
@@ -180,14 +161,8 @@ export interface Alignment {
   score: number;
 }
 
-/**
- * Coarse vertical alignment: scans every strip offset and returns the one
- * whose ink profile best correlates with the PDF page's profile. Print
- * pagination breaks at content boundaries (widows/orphans, keep-together
- * blocks), so page N of the PDF rarely starts exactly at the nominal slice —
- * this recovers the true boundary before SSIM scoring. Ties resolve toward the
- * nominal offset so uniform (blank) profiles never drift randomly.
- */
+/** Coarse vertical alignment via ink-profile correlation: print pagination rarely starts
+ * page N at the nominal slice. Ties resolve toward `nominal` so uniform profiles do not drift. */
 export function alignByCorrelation(pdf: GrayImage, strip: GrayImage, maxOffset: number, nominal: number): Alignment {
   const pdfProfile = inkProfile(pdf);
   const stripProfile = inkProfile(strip);
@@ -224,12 +199,8 @@ export function alignByCorrelation(pdf: GrayImage, strip: GrayImage, maxOffset: 
   return best;
 }
 
-/**
- * Perceptual hash: resize to 32x32, 2-D DCT, keep the low-frequency 8x8
- * block, and threshold each coefficient against the block median. Returned as
- * 16 hex characters (64 bits). Compared via `phashDistance`, this gives a
- * scale-invariant structural cross-check alongside SSIM.
- */
+/** Perceptual hash: 32x32 -> 2-D DCT -> low-frequency 8x8 block, each coefficient
+ * thresholded against the block median; returned as 16 hex chars (64 bits). */
 export function phash(image: GrayImage): string {
   const size = 32;
   const small = resizeWindow(image, 0, image.height, size, size);

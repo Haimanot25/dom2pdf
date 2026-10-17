@@ -17,10 +17,7 @@ export interface QualityWarning {
   /** Stable identifier, e.g. `layout.horizontal-overflow`. */
   code: string;
   message: string;
-  /**
-   * `observed` = something was directly measured (a failed request, a parse
-   * error). `heuristic` = a best-effort estimate (DOM-based layout analysis).
-   */
+  /** `observed` = directly measured; `heuristic` = best-effort estimate (DOM-based analysis). */
   source: "observed" | "heuristic";
 }
 
@@ -44,16 +41,9 @@ export interface QualityReport {
   };
   checks: QualityCheck[];
   warnings: QualityWarning[];
-  /**
-   * Visual comparison of the PDF against the source page, present when
-   * `fidelity.enabled` was on (either `measured` or `skipped` with a reason).
-   * Absent when fidelity verification was disabled.
-   */
+  /** Present when `fidelity.enabled` was on (`measured` or `skipped` with a reason). */
   fidelity?: FidelityReport;
-  /**
-   * Determinism outcome, present when `deterministic: true` was set: the
-   * content digest plus what the date-stamp rewrite did.
-   */
+  /** Present when `deterministic: true`: content digest plus the date-stamp rewrite counts. */
   deterministic?: DeterminismReport;
 }
 
@@ -73,12 +63,8 @@ export interface QualityReportInput {
   deterministic?: DeterminismReport;
 }
 
-/**
- * Builds the structured report from *measured* values only.
- *
- * Text-extraction, resource, and layout checks are added by the quality phase;
- * every check that appears here has actually run.
- */
+/** Builds the report from measured values; `pdf-structure` is the only check added here,
+ * the rest are contributed by the quality phase. */
 export function buildQualityReport(input: QualityReportInput): QualityReport {
   const { inspection } = input;
   return {

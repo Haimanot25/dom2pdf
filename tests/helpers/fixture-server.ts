@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export interface FixtureServer {
-  /** e.g. `http://127.0.0.1:41234` — always loopback, so tests must opt in via `security.allowLoopback`. */
+  /** e.g. `http://127.0.0.1:41234`; loopback only, so tests need `security.allowLoopback`. */
   origin: string;
   close(): Promise<void>;
 }
@@ -27,10 +27,7 @@ const MIME_TYPES: Record<string, string> = {
 
 export const FIXTURES_DIR = path.resolve(fileURLToPath(new URL("../../fixtures", import.meta.url)));
 
-/**
- * Serves the repository's `fixtures/` directory over loopback HTTP for
- * deterministic URL-input tests (no live internet involved).
- */
+/** Serves the repository's `fixtures/` directory over loopback HTTP for URL-input tests. */
 export async function startFixtureServer(rootDir: string = FIXTURES_DIR): Promise<FixtureServer> {
   const root = path.resolve(rootDir);
 
@@ -40,15 +37,13 @@ export async function startFixtureServer(rootDir: string = FIXTURES_DIR): Promis
         const requestUrl = new URL(req.url ?? "/", "http://127.0.0.1");
         const pathname = decodeURIComponent(requestUrl.pathname);
 
-        // Test-only: kills the socket mid-response so `requestfailed` fires
-        // with a deterministic connection error (no reliance on closed ports).
+        // Test-only: destroys the socket mid-response so `requestfailed` fires deterministically.
         if (pathname.startsWith("/__abort")) {
           req.socket.destroy();
           return;
         }
 
-        // Test-only open redirect: /redirect-to?url=<absolute URL> answers 302,
-        // so redirect-hop policy enforcement can be exercised for real.
+        // Test-only open redirect: /redirect-to?url=<absolute URL> answers 302.
         if (pathname === "/redirect-to") {
           const target = requestUrl.searchParams.get("url");
           if (target === null || target.length === 0) {
@@ -60,8 +55,7 @@ export async function startFixtureServer(rootDir: string = FIXTURES_DIR): Promis
           return;
         }
 
-        // Test-only latency injection: /__delay/<ms>/<anything> stalls before
-        // responding so readiness/timeout behavior can be exercised for real.
+        // Test-only latency injection: /__delay/<ms>/<anything> stalls before responding.
         const delayMatch = /^\/__delay\/(\d+)(?:\/|$)/.exec(pathname);
         if (delayMatch !== null) {
           const ms = Math.min(Number.parseInt(delayMatch[1] ?? "0", 10) || 0, 30_000);
@@ -72,9 +66,7 @@ export async function startFixtureServer(rootDir: string = FIXTURES_DIR): Promis
           return;
         }
 
-        // Test-only feed chunk: /__chunk/<n> answers with an HTML fragment
-        // after a short delay, like a real infinite-scroll feed fetches its
-        // next page of content when the reader reaches the bottom.
+        // Test-only feed chunk: /__chunk/<n> returns an HTML fragment after a short delay.
         const chunkMatch = /^\/__chunk\/(\d+)$/.exec(pathname);
         if (chunkMatch !== null) {
           const n = Number.parseInt(chunkMatch[1] ?? "0", 10) || 0;
@@ -84,12 +76,7 @@ export async function startFixtureServer(rootDir: string = FIXTURES_DIR): Promis
           return;
         }
 
-        // Test-only fidelity fixtures: two documents that are byte-identical
-        // except the sabotage variant adds `break-inside: avoid` to a tall
-        // block that straddles the first page boundary. Print pagination must
-        // move the whole block to page 2 (leaving a gap on page 1), while
-        // screen flow shows it in place — a genuine print-vs-screen
-        // divergence the render-fidelity phase must detect.
+        // Test-only fidelity pair: the sabotage variant adds `break-inside: avoid` to a tall block straddling page 1, which print moves to page 2.
         if (pathname === "/fidelity-healthy.html" || pathname === "/fidelity-sabotage.html") {
           const sabotage = pathname === "/fidelity-sabotage.html";
           const paragraphs = Array.from(
@@ -127,9 +114,7 @@ ${paragraphs}
           return;
         }
 
-        // Test-only forensics probe: logs to the console, raises an uncaught
-        // error, and loads an image that 404s — so a failure after this page
-        // loads has console, pageerror, and network state to report.
+        // Test-only forensics probe: logs, raises an uncaught error, and loads a 404 image.
         if (pathname === "/diag-probe.html") {
           res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
           res.end(`<!doctype html>
@@ -148,8 +133,7 @@ ${paragraphs}
           return;
         }
 
-        // Test-only bot gate: like real WAFs that serve error pages to the
-        // HeadlessChrome UA token. 500 for headless UAs, real page otherwise.
+        // Test-only bot gate: 500 for User-Agents containing `HeadlessChrome`, 200 otherwise.
         if (pathname === "/ua-sensitive.html") {
           const userAgent = req.headers["user-agent"] ?? "";
           if (/HeadlessChrome/i.test(userAgent)) {
@@ -162,8 +146,7 @@ ${paragraphs}
           return;
         }
 
-        // Test-only UA echo: renders the User-Agent the browser actually sent,
-        // so UA policy can be asserted from the produced PDF text.
+        // Test-only UA echo: renders the received User-Agent for assertions on PDF text.
         if (pathname === "/echo-ua.html") {
           const userAgent = req.headers["user-agent"] ?? "(none)";
           res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
@@ -171,11 +154,7 @@ ${paragraphs}
           return;
         }
 
-        // Test-only lazy page: tall scroll spacer, a status marker, and an
-        // image that only starts loading when it intersects the viewport
-        // (IntersectionObserver — same mechanism real lazy frameworks use;
-        // print capture alone cannot trigger it). The drain sweep must scroll
-        // it into view; the marker text proves which path happened.
+        // Test-only lazy page: image loads via IntersectionObserver; the status marker shows whether it was scrolled into view.
         if (pathname === "/lazy-load.html") {
           res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
           res.end(`<!doctype html><title>lazy</title><style>body{margin:0}</style>
@@ -201,8 +180,7 @@ ${paragraphs}
           return;
         }
 
-        // Test-only hanging image: the PNG arrives after 6s, longer than any
-        // patience used in tests — exercises per-image patience both ways.
+        // Test-only slow image: the PNG arrives after 6s, beyond any test patience.
         if (pathname === "/slow-image.html") {
           res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
           res.end(

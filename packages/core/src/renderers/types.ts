@@ -10,10 +10,10 @@ export interface RenderContext {
   signal: AbortSignal | undefined;
 }
 
-/** Measured render facts reported back for the quality report. */
+/** Render facts reported back for the quality report. */
 export interface RenderMetadata {
   outputPolicy: "paper-fit";
-  /** Effective scale actually handed to Chromium (0.1 … 1). */
+  /** Effective scale handed to Chromium (0.1 … 1). */
   scale: number;
   /** e.g. `A4` or `793×1123px`. */
   paperLabel: string;
@@ -23,7 +23,7 @@ export interface RenderMetadata {
 export interface RenderResult {
   bytes: Uint8Array;
   metadata?: RenderMetadata;
-  /** Keep-together verdict, present exactly when `pagination.keepTogether` was requested. */
+  /** Present exactly when `pagination.keepTogether` was requested. */
   pagination?: PaginationHintsResult;
 }
 

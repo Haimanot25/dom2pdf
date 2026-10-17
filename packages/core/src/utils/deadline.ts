@@ -1,11 +1,8 @@
 import { Dom2PdfError, type ErrorCode } from "../errors/index.js";
 
 /**
- * A single point in time after which an operation must fail.
- *
- * dom2pdf budgets time with deadlines instead of giving every stage its own
- * unlimited timeout: callers create one deadline per phase (readiness, render)
- * and clamp each stage to the remaining time.
+ * Point in time after which an operation must fail. Callers create one
+ * deadline per phase (readiness, render) and clamp each stage to it.
  */
 export class Deadline {
   /** Unix timestamp (ms) at which this deadline expires. */
@@ -15,7 +12,6 @@ export class Deadline {
     this.expiresAt = expiresAt;
   }
 
-  /** Deadline occurring `ms` milliseconds from now. */
   static in(ms: number): Deadline {
     if (!Number.isFinite(ms) || ms < 0) {
       throw new Dom2PdfError({
@@ -37,22 +33,19 @@ export class Deadline {
     return new Deadline(expiresAt);
   }
 
-  /** Milliseconds left before expiry (never negative). */
+  /** Milliseconds left before expiry; clamped at 0. */
   remainingMs(): number {
     return Math.max(0, this.expiresAt - Date.now());
   }
 
-  /** True once the deadline has passed. */
   get expired(): boolean {
     return this.remainingMs() <= 0;
   }
 
-  /** Caps a requested timeout to the time actually remaining. */
   clamp(ms: number): number {
     return Math.min(ms, this.remainingMs());
   }
 
-  /** Throws a typed error with `code` if the deadline has already passed. */
   throwIfExpired(code: ErrorCode, message: string): void {
     if (this.expired) {
       throw new Dom2PdfError({ code, message, details: { expiresAt: this.expiresAt } });

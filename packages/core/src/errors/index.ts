@@ -1,10 +1,5 @@
-/**
- * Typed errors with stable, machine-readable codes.
- *
- * These codes are part of dom2pdf's public API contract: they are safe to
- * branch on programmatically. New codes may be added in minor releases;
- * existing codes are never renamed or removed within a major version.
- */
+/** Typed errors with stable machine-readable codes, safe to branch on. New codes may be added
+ * in minor releases; existing codes are never renamed or removed within a major version. */
 
 export const ERROR_CODES = [
   /** Input failed validation (malformed URL, bad types, out-of-range values). */
@@ -54,11 +49,8 @@ export interface Dom2PdfErrorOptions {
 export class Dom2PdfError extends Error {
   override readonly name = "Dom2PdfError";
   readonly code: ErrorCode;
-  /**
-   * Structured, sanitized context. Set at construction; on failure paths it
-   * may be extended afterwards with `details.diagnostics` (failure forensics,
-   * opt-in via the `diagnostics` convert option).
-   */
+  /** Set at construction; failure paths may later extend it with `details.diagnostics`
+   * (opt-in via the `diagnostics` convert option). */
   details: Record<string, unknown> | undefined;
 
   constructor(options: Dom2PdfErrorOptions) {
@@ -88,7 +80,6 @@ export function isDom2PdfError(value: unknown): value is Dom2PdfError {
   );
 }
 
-/** Wraps an arbitrary error as a dom2pdf error, preserving dom2pdf errors as-is. */
 export function toDom2PdfError(
   value: unknown,
   fallback: { code: ErrorCode; message: string },

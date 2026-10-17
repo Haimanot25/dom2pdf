@@ -14,10 +14,8 @@ export interface ConvertResult {
 }
 
 export interface Converter {
-  /**
-   * Converts a URL, HTML string, or explicitly-permitted local file to PDF.
-   * Throws `Dom2PdfError` with a stable `code` on any failure.
-   */
+  /** Converts a URL, HTML string, or explicitly-permitted local file to PDF;
+   * throws `Dom2PdfError` with a stable `code` on any failure. */
   convert(options: ConvertOptions): Promise<ConvertResult>;
   /** Closes the underlying browser. Idempotent. */
   close(): Promise<void>;
@@ -25,21 +23,15 @@ export interface Converter {
 
 export interface CreateConverterOptions {
   browser?: {
-    /**
-     * Chromium sandbox. Defaults to `true` (enabled). Only disable this in
-     * controlled environments where the OS provides an equivalent boundary.
-     */
+    /** Chromium sandbox; defaults to `true` (enabled). Disable only where the OS
+     * provides an equivalent boundary. */
     sandbox?: boolean;
     /** Launch timeout in ms (default 60000). */
     launchTimeoutMs?: number;
   };
   limits?: {
-    /**
-     * Fail-fast cap on conversions running at the same time on this converter
-     * with `RESOURCE_LIMIT_EXCEEDED` (no queuing). Unlimited by default.
-     * Isolation between jobs is unaffected: each conversion still gets its own
-     * browser context.
-     */
+    /** Fail-fast cap on simultaneous conversions with `RESOURCE_LIMIT_EXCEEDED` (no queuing);
+     * unlimited by default. Isolation is unaffected: each conversion gets its own context. */
     maxConcurrentConversions?: number;
   };
   /** Custom logger; defaults to a console logger at `warn` level. */

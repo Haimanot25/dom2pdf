@@ -1,5 +1,4 @@
-// Rebuilds summary.md from the per-conversion report JSONs on disk (the
-// source of truth after reruns replaced individual runs).
+// Rebuilds summary.md from the per-conversion report JSONs on disk (source of truth after reruns).
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 

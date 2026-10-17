@@ -17,9 +17,8 @@ export type InputPlan =
   | { kind: "html"; html: string; baseUrl: string | undefined };
 
 /**
- * Runs all input-side security checks (protocol, network destination, local
- * file allowlist) and produces an execution plan. Throws typed errors; never
- * performs browser work.
+ * Runs input-side security checks (protocol, network destination, local file
+ * allowlist) and returns an execution plan. Throws typed errors; no browser work.
  */
 export async function prepareInput(
   options: NormalizedOptions,
@@ -63,7 +62,7 @@ export async function prepareInput(
 
 /**
  * Injects `<base href>` for HTML-string inputs so relative references resolve.
- * An author-declared `<base>` always wins (we never inject in that case).
+ * An existing author-declared `<base>` wins; none is injected in that case.
  */
 export function injectBaseHref(html: string, baseUrl: string): string {
   if (/<base\s/i.test(html)) return html;

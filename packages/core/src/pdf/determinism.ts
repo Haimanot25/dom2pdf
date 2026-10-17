@@ -3,20 +3,8 @@ import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { Dom2PdfError } from "../errors/index.js";
 
 /**
- * Deterministic (reproducible) PDF output.
- *
- * Chromium's PDF writer stamps every file with `/CreationDate` and `/ModDate`.
- * Those two spans are the only byte-level differences between two conversions
- * of the same input on the same browser build (verified empirically — there is
- * no `/ID` trailer difference). `normalizePdfDates` zeroes the date digits (and
- * normalizes the UTC-offset sign) **in place**, preserving byte length, so the
- * xref offsets stay valid and the rewritten file remains a well-formed PDF.
- *
- * Honesty notes: byte-level reproducibility holds for repeated conversions on
- * the same machine and Chromium build. It is NOT guaranteed across machines or
- * browser versions — font rasterization and PDF layout can legitimately differ.
- * A date-key occurrence whose value is not a literal string (so it cannot be
- * rewritten safely) is counted in `residual`, never silently ignored.
+ * Date spans are the only byte-level difference between runs of one build; zeroing them in place
+ * preserves byte length (xref stays valid). Holds for the same machine and Chromium build only.
  */
 
 /** Report of what the deterministic rewrite did, carried on the quality report. */
@@ -30,7 +18,7 @@ export interface DeterminismReport {
 }
 
 export interface PdfDateNormalization {
-  /** A copy with dates normalized — the input is never mutated. */
+  /** A copy with dates normalized; the input is never mutated. */
   bytes: Uint8Array;
   normalizedSpans: number;
   residual: number;
@@ -76,7 +64,7 @@ function findClosingParen(bytes: Uint8Array, open: number): number {
   for (let i = open + 1; i < bytes.length; i += 1) {
     const byte = bytes[i];
     if (byte === 0x5c) {
-      i += 1; // escaped character — skip it
+      i += 1; // skip the escaped character
       continue;
     }
     if (byte === 0x29) return i;
@@ -84,12 +72,8 @@ function findClosingParen(bytes: Uint8Array, open: number): number {
   return -1;
 }
 
-/**
- * Zeroes `/CreationDate` and `/ModDate` literal-string values in place:
- * digits become `0` and a `-` UTC-offset sign becomes `+`. Byte length is
- * preserved, so the xref table stays valid. Keys whose value is not a
- * parenthesized literal string are counted in `residual`.
- */
+/** Zeroes `/CreationDate` and `/ModDate` literal-string values in place (digits become `0`,
+ * a `-` UTC-offset sign becomes `+`), preserving byte length. Non-literal values count as `residual`. */
 export function normalizePdfDates(input: Uint8Array): PdfDateNormalization {
   const bytes = new Uint8Array(input); // copy: never mutate the caller's buffer
   let normalizedSpans = 0;
@@ -107,7 +91,7 @@ export function normalizePdfDates(input: Uint8Array): PdfDateNormalization {
       let valueStart = from;
       while (valueStart < bytes.length && isWhitespaceByte(bytes[valueStart])) valueStart += 1;
       if (bytes[valueStart] !== 0x28) {
-        residual += 1; // value is not a literal string — cannot rewrite safely
+        residual += 1; // value is not a literal string: cannot rewrite safely
         continue;
       }
       const close = findClosingParen(bytes, valueStart);
@@ -130,24 +114,16 @@ export function normalizePdfDates(input: Uint8Array): PdfDateNormalization {
   return { bytes, normalizedSpans, residual };
 }
 
-/**
- * sha256 over `pageCount` + per-page extracted text with whitespace collapsed.
- * Lets callers verify "same content" across runs independently of the
- * byte-level date stamps. The version tag keeps future format changes from
- * silently colliding with old digests.
- */
+/** sha256 over `pageCount` plus per-page text with whitespace collapsed, independent of the
+ * date stamps; the version tag keeps future format changes from colliding with old digests. */
 export function digestFromPages(pageCount: number, pageTexts: readonly string[]): string {
   const normalized = pageTexts.map((text) => text.replace(/\s+/g, " ").trim());
   const payload = `dom2pdf-text-digest-v1\n${pageCount}\n${normalized.join("\u241e")}`;
   return createHash("sha256").update(payload, "utf8").digest("hex");
 }
 
-/**
- * Extracts per-page text with pdf.js (same engine as structural inspection)
- * and returns its content digest. Runs only when `deterministic: true` is
- * requested; a parse failure surfaces as a typed error rather than a silently
- * missing digest.
- */
+/** Per-page text via pdf.js (same engine as structural inspection); runs only when
+ * `deterministic: true`. A parse failure surfaces as a typed error, not a missing digest. */
 export async function contentDigest(bytes: Uint8Array): Promise<string> {
   try {
     const task = getDocument({ data: new Uint8Array(bytes), verbosity: 0 });

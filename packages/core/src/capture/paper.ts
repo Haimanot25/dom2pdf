@@ -3,10 +3,8 @@ import type { PaperFormat } from "../config/schema.js";
 import { Dom2PdfError } from "../errors/index.js";
 
 /**
- * Paper-fit computation for screen mode.
- *
- * All paper sizes are CSS pixels at the 96dpi reference (the same basis
- * Chromium uses for `px`), derived from their millimeter/inch definitions.
+ * Paper-fit computation for screen mode. Sizes are CSS px at the 96dpi reference
+ * (Chromium's px basis), derived from the mm/inch definitions.
  */
 
 const MM_TO_PX = 96 / 25.4;
@@ -67,11 +65,8 @@ export interface PaperFit {
   paperLabel: string;
 }
 
-/**
- * Resolves the configured paper to a box in CSS px (orientation applied).
- * Shared by the paper-fit scale and the print-geometry computation so both
- * see exactly the same paper.
- */
+/** Resolves the configured paper to a box in CSS px (orientation applied); shared by
+ * paper-fit and print geometry so both see the same paper. */
 function resolvePaperBox(pdf: NormalizedPdfOptions): { widthPx: number; heightPx: number; label: string } {
   let widthPx: number;
   let heightPx: number;
@@ -97,11 +92,8 @@ function resolvePaperBox(pdf: NormalizedPdfOptions): { widthPx: number; heightPx
   return { widthPx, heightPx, label };
 }
 
-/**
- * Computes the `paper-fit` scale: the viewport width (plus margins) is scaled
- * exactly onto the paper's content width. Content narrower than the paper is
- * never enlarged past 100%.
- */
+/** Paper-fit scale: viewport width plus margins scaled onto the paper's content width;
+ * clamped to 0.1..1 so content narrower than the paper is never enlarged. */
 export function computePaperFit(pdf: NormalizedPdfOptions, viewport: NormalizedViewport): PaperFit {
   const box = resolvePaperBox(pdf);
 
@@ -122,13 +114,8 @@ export interface PrintGeometry {
   contentHeightPx: number;
 }
 
-/**
- * The content box one PDF page offers, in CSS px — the geometry print
- * pagination works against. `page.pdf()` lays the document out at
- * `contentWidth / scale` CSS px wide (independent of the live viewport) and
- * fits `contentHeight / scale` CSS px of content onto each page, which is
- * exactly the height budget the keep-together pass guards against.
- */
+/** `page.pdf()` lays the document out at `contentWidth / scale` CSS px wide (independent of the
+ * live viewport) and fits `contentHeight / scale` CSS px of content onto each page. */
 export function computePrintGeometry(pdf: NormalizedPdfOptions): PrintGeometry {
   const box = resolvePaperBox(pdf);
   const marginLeft = pdf.margin?.left !== undefined ? lengthToPx(pdf.margin.left) : 0;

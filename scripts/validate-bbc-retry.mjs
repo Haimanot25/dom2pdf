@@ -1,7 +1,5 @@
-// One more BBC baseline attempt (defaults) after two READINESS_TIMEOUTs while
-// the keep variant settled on its first attempt. If it fails again, fall back
-// to the documented escape hatch (raise readiness.timeoutMs) purely to obtain
-// the side-by-side baseline PDF, and mark it clearly in the report.
+// BBC baseline retry: defaults first, then readiness.timeoutMs=60000 if that
+// fails, to obtain the side-by-side baseline PDF. Live internet, not in CI.
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { writeFile } from "node:fs/promises";

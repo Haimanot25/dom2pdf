@@ -5,6 +5,80 @@ All notable changes to dom2pdf are documented here. Versions follow
 versions, and **error codes may be added in minor releases** (treat unknown
 codes as generic failures).
 
+## 0.1.0-alpha.1 (2026-10-17)
+
+### Object-aware pagination (`pagination.keepTogether`, opt-in)
+
+New opt-in option `pagination: { keepTogether: true }` (CLI
+`--keep-together`, web UI checkbox). Off by default: without the option
+nothing is injected and pagination is exactly Chromium's default, byte for
+byte.
+
+- **Geometry-aware marking**: candidates are measured at the print layout
+  size (`contentWidth / scale`, transiently resized and restored; no resize
+  needed when the live viewport already matches) and only objects that fit
+  one page (≤ 95% of the content height budget) get `break-inside: avoid` —
+  tables, figures, images, videos, code blocks, and standalone SVGs no
+  longer straddle a page break.
+- **Rows never clipped at a page edge**: `tr { break-inside: avoid }` pushes
+  a straddling row whole to the next page; rows taller than a page still
+  break.
+- **Overridden `<thead>` repeats**: tables whose header group was forced to
+  `table-row-group` (the responsive "don't repeat" trick) get a scoped rule
+  restoring `table-header-group`, so headers appear on continuation pages;
+  hidden (`display: none`) headers stay hidden.
+- Engine limits (verified against this Chromium build): an avoid block
+  taller than a page overflows invisibly past the page edge, so over-tall
+  objects are not marked (counted as `too tall to keep`); `break-after:
+  avoid` is not honored by the engine, so no heading rules are applied;
+  with `pdf.preferCSSPageSize` the paper comes from `@page` and cannot be
+  known pre-render, so the pass reports `skipped` with the reason.
+- New `render.pagination` check (counts kept/repeated/too-tall plus the page
+  budget; `skipped` with the reason when the pre-pass could not run —
+  enrichment, never a conversion failure).
+- **CSP-safe injection**: the stylesheet is installed as a constructed
+  stylesheet on `document.adoptedStyleSheets`, which strict `style-src`
+  policies without `unsafe-inline` (e.g. gov.uk) do not block.
+- **Shadow DOM + iframe coverage**: candidates are also collected from open
+  shadow roots, with the stylesheet adopted per root (a document sheet never
+  crosses the shadow boundary), and a page-fitting iframe is kept whole as
+  a box. Closed shadow roots and iframe interiors are not scanned —
+  documented in `docs/api.md`.
+- Kept objects change per-page composition versus the unpaginated
+  screenshot, so fidelity scores on affected pages can be lower; this is
+  noted in `docs/api.md`.
+- Tests: schema/normalize/geometry units, CLI/web-UI flag mapping units, and
+  an e2e spec covering default-off, whole-table keep, row push, header
+  repeat, figure/caption keep, the too-tall guard, screen mode, and the
+  `preferCSSPageSize` skip.
+
+### Web UI redesign (visual polish)
+
+- The local web UI (`dom2pdf-web`) got a full visual redesign: dark-first
+  theme that follows `prefers-color-scheme` (light and dark), a sectioned
+  form (target / output / reliability & layout) with switch-style option
+  toggles, stat tiles and prominent actions on the result card, and a
+  structured error card (icon, code chip, hint callout, forensics block).
+  Same contract as before — a fully self-contained single page with inline
+  CSS/JS and no external assets, identical element ids, and unchanged report
+  wording, so the security posture and tests are untouched.
+- Converting now shows a live status line with an elapsed-time ticker plus a
+  spinner on the button (`aria-busy`/`aria-live` for assistive technology).
+- Error messages strip embedded ANSI color codes (Playwright call-log
+  styling) that previously rendered as garbage glyphs in the error card.
+- `scripts/capture-ui-states.mjs` (manual, alongside the `validate-*`
+  scripts) captures every UI state — initial, result, error, forensics — in
+  both color schemes for visual review.
+
+### Codebase cleanup and release preparation
+
+- Source comments across the workspace were rewritten to a terse technical
+  register (narrative blocks removed; non-obvious engine/security facts
+  kept). `scripts/check-comment-only.mjs` proves the pass was comment-only
+  by comparing TypeScript ASTs before and after.
+- npm metadata (`repository`, `homepage`, `bugs`) added to the publishable
+  packages; each package tarball now ships the MIT `LICENSE`.
+
 ## 0.1.0-alpha.0 (2026-10-14)
 
 First public alpha — the six-phase foundation, in order:
@@ -241,69 +315,3 @@ sites, SPAs, repos, news, commerce) and fixed what it surfaced:
   `NAVIGATION_FAILED`; the remaining outliers (a trailing empty page on
   GitHub, a fidelity skip on a slow NASA load) are reported, not hidden.
 
-### Object-aware pagination (`pagination.keepTogether`, opt-in)
-
-New opt-in option `pagination: { keepTogether: true }` (CLI `--keep-together`,
-web UI checkbox) that stops the common print awkwardness. Off by default:
-without the option nothing is injected and pagination is exactly Chromium's
-default, byte for byte.
-
-- **Geometry-aware marking**: candidates are measured at the print layout
-  size (`contentWidth / scale`, transiently resized and restored; no resize
-  needed when the live viewport already matches) and only objects that fit
-  one page (≤ 95% of the content height budget) get `break-inside: avoid` —
-  tables, figures, images, videos, code blocks, and standalone SVGs no longer
-  straddle a page break.
-- **Rows never clipped at a page edge**: `tr { break-inside: avoid }` pushes a
-  straddling row whole to the next page; rows taller than a page still break.
-- **Overridden `<thead>` repeats**: tables whose header group was forced to
-  `table-row-group` (the responsive "don't repeat" trick) get a scoped rule
-  restoring `table-header-group`, so headers appear on continuation pages;
-  deliberately hidden (`display: none`) headers stay hidden.
-- **Honest limits, verified against this Chromium build before shipping**: an
-  avoid block *taller than a page* is pushed and then overflows invisibly past
-  the page edge, so over-tall objects are deliberately not marked (counted as
-  `too tall to keep`); `break-after: avoid` (heading grouping) is not honored
-  by the engine, so no heading rules are applied; with
-  `pdf.preferCSSPageSize` the paper comes from `@page` and cannot be known
-  pre-render, so the pass reports `skipped` with the reason instead of
-  guessing.
-- New `render.pagination` check (counts kept/repeated/too-tall plus the page
-  budget; `skipped` with the reason when the pre-pass could not run —
-  enrichment, never a conversion failure).
-- **CSP-safe injection** (found by a real-site validation run): the
-  stylesheet is installed as a constructed stylesheet on
-  `document.adoptedStyleSheets`, which strict `style-src` policies without
-  `unsafe-inline` (e.g. gov.uk) do not block — the earlier `addStyleTag`
-  path was refused there and the check honestly reported `skipped`.
-- **Shadow DOM + iframe coverage** (same validation run, against MDN):
-  candidates are also collected from open shadow roots, with the stylesheet
-  adopted per root (a document sheet never crosses the shadow boundary), and
-  a page-fitting iframe is kept whole as a box (Chromium honors the rule on
-  it — probe-verified). Closed shadow roots and iframe interiors are not
-  scanned — documented in `docs/api.md`.
-- Docs note the fidelity interaction honestly: kept objects change per-page
-  composition versus the unpaginated screenshot, so those pages can score
-  lower.
-- Tests: schema/normalize/geometry units, CLI/web-UI flag mapping units, and
-  an e2e spec covering default-off, whole-table keep, row push, header
-  repeat, figure/caption keep, the too-tall guard, screen mode, and the
-  `preferCSSPageSize` skip.
-
-### Web UI redesign (visual polish)
-
-- The local web UI (`dom2pdf-web`) got a full visual redesign: dark-first
-  theme that follows `prefers-color-scheme` (light and dark), a sectioned
-  form (target / output / reliability & layout) with switch-style option
-  toggles, stat tiles and prominent actions on the result card, and a
-  structured error card (icon, code chip, hint callout, forensics block).
-  Same contract as before — a fully self-contained single page with inline
-  CSS/JS and no external assets, identical element ids, and unchanged report
-  wording, so the security posture and tests are untouched.
-- Converting now shows a live status line with an elapsed-time ticker plus a
-  spinner on the button (`aria-busy`/`aria-live` for assistive technology).
-- Error messages strip embedded ANSI color codes (Playwright call-log
-  styling) that previously rendered as garbage glyphs in the error card.
-- `scripts/capture-ui-states.mjs` (manual, alongside the `validate-*`
-  scripts) captures every UI state — initial, result, error, forensics — in
-  both color schemes for visual review.

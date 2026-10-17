@@ -6,7 +6,7 @@ import type { BenchmarkEngine, EngineAvailability, EngineTimedRun } from "./type
 
 const require = createRequire(import.meta.url);
 
-/** Fixed, documented html2pdf.js configuration — never tuned per run. */
+/** Fixed html2pdf.js configuration; not tuned per run. */
 const HTML2PDF_OPTIONS = Object.freeze({
   margin: 10,
   image: { type: "jpeg", quality: 0.95 },
@@ -15,10 +15,8 @@ const HTML2PDF_OPTIONS = Object.freeze({
 });
 
 /**
- * html2pdf.js (html2canvas + jsPDF) executed **inside** the same Chromium:
- * the UMD bundle is injected into a page holding the scenario's HTML, and the
- * conversion runs as a page script. This measures the library the way it is
- * actually used — DOM → canvas rasterization → PDF assembly in JavaScript.
+ * html2pdf.js (html2canvas + jsPDF) running inside Chromium: the UMD bundle is
+ * injected into the scenario's page and conversion runs as a page script.
  */
 export function createHtml2PdfEngine(): BenchmarkEngine {
   let browser: Browser | undefined;
@@ -48,8 +46,7 @@ export function createHtml2PdfEngine(): BenchmarkEngine {
       browser ??= await chromium.launch({ headless: true, chromiumSandbox: true });
       browserVersion ??= browser.version();
       const fresh = await browser.newPage();
-      // A fresh page per scenario: content and injected bundle must match the
-      // scenario exactly (setContent wipes scripts, so inject afterwards).
+      // `setContent` wipes scripts, so the bundle is injected afterwards.
       await fresh.setContent(html, { waitUntil: "load" });
       await fresh.addScriptTag({ content: bundleSource });
       page?.close().catch(() => undefined);

@@ -2,12 +2,8 @@ import type { NormalizedQualityOptions } from "../config/normalize.js";
 import { Dom2PdfError } from "../errors/index.js";
 import type { QualityReport } from "./report.js";
 
-/**
- * Quality policies compare measured output against caller-declared
- * expectations. Violations fail the conversion with `QUALITY_POLICY_FAILED`
- * (CLI exit code 4) and carry the full report so callers can inspect what was
- * actually measured — a rejected result never hides its numbers.
- */
+/** Compares measured output against caller-declared expectations. Violations fail the conversion
+ * with `QUALITY_POLICY_FAILED` (CLI exit code 4) and carry `details.violations` and `details.report`. */
 
 export interface QualityMetrics {
   pageCount: number;
@@ -24,7 +20,6 @@ export interface QualityViolation {
   message: string;
 }
 
-/** Returns every violated rule for the given policy; empty when the output passes. */
 export function qualityViolations(
   policy: NormalizedQualityOptions,
   metrics: QualityMetrics,
@@ -65,10 +60,7 @@ export function qualityViolations(
   return violations;
 }
 
-/**
- * Throws `QUALITY_POLICY_FAILED` (with `details.violations` and
- * `details.report`) when any rule is violated; otherwise returns normally.
- */
+/** Throws `QUALITY_POLICY_FAILED` with `details.violations` and `details.report` when any rule is violated. */
 export function assertQualityPolicy(
   policy: NormalizedQualityOptions,
   metrics: QualityMetrics,

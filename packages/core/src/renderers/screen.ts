@@ -9,14 +9,10 @@ import { buildPdfOptions } from "./pdf-options.js";
 import type { RenderContext, RenderResult, Renderer } from "./types.js";
 
 /**
- * Screen-mode renderer with the `paper-fit` output policy: the page lays out
- * at the configured viewport under screen CSS, then is scaled so the viewport
- * width lands exactly on the paper's content width (margins excluded) and
- * paginates vertically at that scale.
- *
+ * Screen renderer with the `paper-fit` policy: the viewport is scaled so its
+ * width lands on the paper content width, then paginated at that scale.
  * Content narrower than the paper is never enlarged past 100%. Fixed/sticky
- * elements and scroll containers are reported as warnings, not removed — DOM
- * mutation requires an explicit policy and is not part of this phase.
+ * elements and scroll containers are reported as warnings, not removed.
  */
 export const screenRenderer: Renderer = {
   mode: "screen",
@@ -28,8 +24,7 @@ export const screenRenderer: Renderer = {
     );
 
     const fit = computePaperFit(options.pdf, options.viewport);
-    // `pdf.scale` is rejected by schema validation in screen mode, so the
-    // computed fit scale is the single source of truth here.
+    // `pdf.scale` is rejected by schema validation in screen mode; `fit.scale` is the only scale source.
     const pdfOptions = { ...buildPdfOptions(options.pdf), scale: fit.scale };
     const geometry = computePrintGeometry(options.pdf);
 
@@ -45,8 +40,7 @@ export const screenRenderer: Renderer = {
       await finishAnimations(page);
       const pagination = options.pagination.keepTogether
         ? await applyPaginationHints(page, {
-            // Print lays out at contentWidth/scale, which the fit scale maps
-            // back onto the viewport width — no resize in the common case.
+            // Print lays out at contentWidth/scale; the fit scale maps that back onto the viewport width.
             printLayoutWidthCssPx: geometry.contentWidthPx / fit.scale,
             pageBudgetCssPx: geometry.contentHeightPx / fit.scale,
             preferCSSPageSize: options.pdf.preferCSSPageSize,

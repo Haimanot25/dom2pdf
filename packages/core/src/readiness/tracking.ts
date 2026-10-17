@@ -2,17 +2,8 @@ import type { Page, Request, Response } from "playwright";
 import { sanitizeUrl } from "../utils/url.js";
 
 /**
- * Observes subresource traffic during navigation so the quality report can
- * state, as fact, which requests failed or returned HTTP errors — and so the
- * readiness phase can wait for genuine network quiet. The tracker attaches
- * *before* navigation, which is the whole point: activity that started during
- * page parse is visible to it, whereas listeners attached after `load` would
- * miss requests already in flight.
- *
- * Only http(s) resources are tracked — `data:`/`blob:`/`about:` URLs have no
- * server outcome — and `/favicon.ico` is excluded from *issues* because the
- * browser probes it on its own and a 404 there says nothing about the
- * document being converted (it still counts as network activity).
+ * Must attach before navigation: listeners attached after `load` miss requests already in flight.
+ * `/favicon.ico` is excluded from issues (browser's own probe) but still counts as activity.
  */
 
 /** Read-only view of network activity used by the network-idle readiness check. */
@@ -22,25 +13,18 @@ export interface NetworkActivity {
   /** http(s) requests that started but have not received a response or failed. */
   inFlight(): number;
   /**
-   * Epoch ms an http(s) request with this exact URL started, if it is still
-   * in flight. Lets readiness apply *per-resource* patience (a resource that
-   * started 12s ago is out of patience; one that started 200ms ago is not)
-   * instead of one global stage deadline.
+   * Epoch ms a request with this exact URL started, if still in flight;
+   * used for per-resource patience rather than one global stage deadline.
    */
   requestStartAt(url: string): number | undefined;
   /**
-   * In-flight requests that started less than `maxAgeMs` ago. `undefined`
-   * counts every in-flight request. Requests older than the per-resource
-   * patience are presumed hung — they must not block network quiet, or a
-   * single hanging asset would re-create the very deadline trap the patience
-   * exists to avoid.
+   * In-flight requests started within `maxAgeMs`; `undefined` counts all.
+   * Requests older than the patience are presumed hung and do not block network quiet.
    */
   inFlightRecent(maxAgeMs: number | undefined): number;
   /**
-   * Absolute URLs of in-flight requests that are at least `maxAgeMs` old —
-   * the hung assets readiness stopped waiting for. Reported as `resources.slow`
-   * warnings so giving up is visible, never silent. Empty when patience is
-   * disabled (`maxAgeMs` undefined/0).
+   * In-flight URLs at least `maxAgeMs` old, reported as `resources.slow` warnings.
+   * Empty when patience is disabled (`maxAgeMs` undefined/0).
    */
   stalledUrls(maxAgeMs: number | undefined): string[];
 }
@@ -76,23 +60,14 @@ function isFavicon(url: string): boolean {
 
 export function trackResources(page: Page): ResourceTracker {
   const issues: ResourceIssue[] = [];
-  // Keyed by the `Request` object — never by URL. A page can legitimately
-  // have several requests for the *same* URL in flight at once (a poll fired
-  // every 50ms with 100ms responses, retried assets), and URL-keyed entries
-  // silently lose them: each new request overwrote the previous start time,
-  // and the first response deleted the entry while later same-URL requests
-  // were still transferring. `inFlightRecent` then reported no transfers
-  // during a stage that was actually downloading — flipping load-vs-churn
-  // verdicts under load (found via a flaky readiness contract test).
+  // Keyed by the `Request` object, never by URL: one URL can have several requests in flight
+  // at once, and URL-keyed entries would overwrite start times and drop them on the first response.
   const inFlightStarts = new Map<Request, { url: string; startedAt: number }>();
   let inFlight = 0;
   let lastActivityAt = Date.now();
 
-  // Counting rules chosen so increments/decrements stay balanced across
-  // redirects: `request` fires per hop, `response` fires per hop (including
-  // `redirectResponse`), and `requestfailed` covers hops that die early.
-  // Each hop settles exactly the object it started with, so no hop can
-  // delete another hop's (or another request's) entry.
+  // Counts balance across redirects: `request` and `response` fire per hop (including
+  // `redirectResponse`), and each hop settles exactly the object it started with.
   const onRequest = (request: Request): void => {
     if (!isHttpUrl(request.url())) return;
     inFlight += 1;
@@ -135,8 +110,7 @@ export function trackResources(page: Page): ResourceTracker {
     lastActivityAt: () => lastActivityAt,
     inFlight: () => inFlight,
     requestStartAt: (url: string) => {
-      // Newest start among in-flight requests for this URL: a fresh retry for
-      // the same asset must not look stalled while it is still transferring.
+      // Newest start among in-flight requests for this URL, so a fresh retry does not look stalled.
       let newest: number | undefined;
       for (const entry of inFlightStarts.values()) {
         if (entry.url === url && (newest === undefined || entry.startedAt > newest)) {

@@ -1,11 +1,9 @@
 import { z } from "zod";
 
 /**
- * Runtime schema for `converter.convert(options)`.
- *
- * Every options object is a strict object: unknown keys are rejected with
- * `UNSUPPORTED_OPTION` (never silently ignored). Cross-field constraints live
- * in `.superRefine` checks so callers get one clear message per mistake.
+ * Runtime schema for `converter.convert(options)`. Every options object is
+ * strict: unknown keys are rejected with `UNSUPPORTED_OPTION`. Cross-field
+ * constraints live in `.superRefine` checks.
  */
 
 export const PAPER_FORMATS = [
@@ -104,47 +102,37 @@ export const viewportSchema = z.strictObject({
 
 export const readinessSchema = z.strictObject({
   /**
-   * Overall deadline (ms) covering input preparation, navigation, and all
-   * readiness checks — not a per-stage budget. Exceeding it fails the
-   * conversion with `READINESS_TIMEOUT`, naming the stage that gave out.
+   * Overall deadline (ms) for input preparation, navigation, and all
+   * readiness checks — not per-stage. Exceeding it fails with
+   * `READINESS_TIMEOUT`, naming the stage that gave out.
    */
   timeoutMs: z.number().int().positive().max(30 * 60_000).optional(),
   /** Await `document.fonts.ready` (in-flight web-font loads finish first). Default `true`. */
   fonts: z.boolean().optional(),
   /**
-   * Font families with a matching `@font-face` that must finish loading
-   * before rendering, e.g. `["Inter"]`. Waits within the overall deadline;
-   * declarations the browser reports as failed (bad URL, parse error) are
-   * surfaced in the quality report (`resources.font-unavailable`) rather than
-   * failing the conversion. Families with no matching declaration are not
-   * flagged — Chromium cannot distinguish a system font from a fallback there.
+   * Font families with a matching `@font-face` that must load before
+   * rendering. Failed declarations surface as `resources.font-unavailable`;
+   * families with no declaration are not flagged (Chromium cannot
+   * distinguish a system font from a fallback there).
    */
   waitForFonts: z.array(z.string().min(1).max(200)).max(20).optional(),
   /** Wait until every `<img>` has finished loading (failed images count as finished). Default `true`. */
   images: z.boolean().optional(),
   /**
-   * Individual patience (ms) for a still-pending image. When one image
-   * outlasts it — a hanging asset, an endpoint that streams forever — the
-   * readiness phase stops blocking on that image and the conversion proceeds
-   * with a `resources.slow` warning, instead of spending the whole shared
-   * deadline and failing. `0` disables the per-image patience (a pending
-   * image then blocks until the overall `timeoutMs`, the pre-0.7 behavior).
-   * Default `10000`.
+   * Individual patience (ms) for a still-pending image; past it the
+   * conversion proceeds with a `resources.slow` warning instead of spending
+   * the shared deadline. `0` disables it (a pending image then blocks until
+   * `timeoutMs`). Default `10000`.
    */
   slowResourceMs: z.number().int().min(0).max(300_000).optional(),
   /**
-   * Before the other checks, sweep scroll the page to trigger lazy-loaded
-   * content (`loading="lazy"` images/iframes and `data-src`-style markup)
-   * that would otherwise never load and render blank below the fold. Only
-   * runs when the document is scrollable *and* declares lazy markers;
-   * bounded by step count, per-step quiet windows, the request cap, and the
-   * overall deadline. Default `true`.
+   * Sweep-scroll the page before the other checks to trigger lazy content
+   * (`loading="lazy"` images/iframes, `data-src`-style markup) that would
+   * otherwise render blank. Bounded by step count and the deadline.
+   * Default `true`.
    */
   lazyLoad: z.boolean().optional(),
-  /**
-   * Consider the page ready after this many milliseconds without network
-   * activity. `0` disables the check. Default `300`.
-   */
+  /** Consider the page ready after this many ms without network activity. `0` disables. Default `300`. */
   networkIdleMs: z.number().int().min(0).max(60_000).optional(),
   /** Wait until this CSS selector matches at least one *visible* element. */
   selector: z.string().min(1).max(1_000).optional(),
@@ -177,37 +165,31 @@ export const qualitySchema = z
 
 export const fidelitySchema = z.strictObject({
   /**
-   * Run render-fidelity verification after rendering: re-rasterize the PDF
-   * inside Chromium (pdf.js) and compare sampled pages against live-page
-   * screenshots under the same media emulation. Default `true`.
+   * Re-rasterize the PDF in Chromium (pdf.js) and compare sampled pages
+   * against live-page screenshots under the same media emulation.
+   * Default `true`.
    */
   enabled: z.boolean().optional(),
-  /**
-   * How many PDF pages to verify (first N pages) — a number from 1 to 50, or
-   * `"all"` for every page. Default `3`.
-   */
+  /** How many PDF pages to verify (first N, 1–50, or `"all"`). Default `3`. */
   samplePages: z.union([z.number().int().min(1).max(50), z.literal("all")]).optional(),
   /**
-   * Mean structural-similarity (SSIM) below which the `render.fidelity` check
-   * warns. Scores are a heuristic visual comparison, never a pixel-perfectness
-   * claim. Range 0–1. Default `0.8`.
+   * Mean SSIM below which the `render.fidelity` check warns — a visual
+   * comparison, not a pixel-perfectness claim. Range 0–1. Default `0.8`.
    */
   threshold: z.number().min(0).max(1).optional(),
 });
 
 export const limitsSchema = z.strictObject({
   /**
-   * Maximum http(s) requests a single conversion may make (the browser-probed
-   * favicon is excluded). When exceeded, further requests are aborted at the
-   * network layer and the conversion fails with `RESOURCE_LIMIT_EXCEEDED`.
-   * Default `500`.
+   * Maximum http(s) requests per conversion (the browser-probed favicon is
+   * excluded); exceeding it aborts further requests and fails with
+   * `RESOURCE_LIMIT_EXCEEDED`. Default `500`.
    */
   maxRequests: z.number().int().min(1).max(100_000).optional(),
   /**
-   * Hard cap on generated PDF size in bytes, checked before inspection.
-   * Distinct from `quality.maxBytes`: a limit is a safety rail that fails the
-   * conversion outright, a quality policy is an expectation whose rejection
-   * carries the measured report.
+   * Hard cap on generated PDF bytes, checked before inspection — fails the
+   * conversion outright, unlike `quality.maxBytes`, an expectation checked
+   * with the measured report.
    */
   maxOutputBytes: z.number().int().min(1).optional(),
 });
@@ -219,11 +201,9 @@ export const renderSchema = z.strictObject({
 
 export const paginationSchema = z.strictObject({
   /**
-   * Object-aware pagination (opt-in, default `false`): keep tables, figures,
-   * images, videos, code blocks, and standalone SVGs whole across page breaks
-   * when they fit a single page; never clip a table row at a page edge; repeat
-   * overridden table header groups on continuation pages. Off by default, so
-   * pagination is byte-for-byte unchanged unless you ask for it.
+   * Keep tables, figures, images, videos, code blocks, and standalone SVGs
+   * whole across page breaks when they fit one page; never clip a table row
+   * at a page edge; repeat overridden table headers. Default `false`.
    */
   keepTogether: z.boolean().optional(),
 });
@@ -241,15 +221,11 @@ export const securitySchema = z.strictObject({
 
 export const convertBrowserSchema = z.strictObject({
   /**
-   * User-Agent for every request of this conversion.
-   *
-   * Default: this Chromium build's standard `Chrome` UA (the `HeadlessChrome`
-   * token removed). Production sites and WAFs frequently serve error pages —
-   * 403s and 500s — to the `HeadlessChrome` string, and a conversion engine's
-   * job is to render the site, not to advertise its automation to a bot
-   * filter. This changes the UA *string* only: TLS and HTTP/2 fingerprints
-   * still identify an automated browser, so do not treat this as an
-   * anonymity control. Pass any string to override it exactly.
+   * User-Agent for every request. Default: this Chromium build's standard
+   * `Chrome` UA (`HeadlessChrome` removed) — WAFs serve error pages to the
+   * `HeadlessChrome` string. This changes the UA string only: TLS/HTTP2
+   * fingerprints still identify an automated browser. Any string overrides
+   * it exactly.
    */
   userAgent: z.string().min(1).max(512).optional(),
 });
@@ -265,7 +241,6 @@ export const htmlInputSchema = z.strictObject({
   /**
    * Optional http(s) base URL for resolving relative references in `html`.
    * Injected as `<base href>` unless the markup already declares one.
-   * Credentials in the URL are rejected.
    */
   baseUrl: z.string().min(1).optional(),
 });
@@ -279,15 +254,10 @@ export const inputSchema = z.discriminatedUnion("type", [urlInputSchema, htmlInp
 
 export const outputPolicySchema = z.strictObject({
   /**
-   * How screen-mode output is produced.
-   *
-   * - `paper-fit` (implemented): the viewport is scaled to fit the paper width
-   *   and paginates vertically at that scale.
-   * - `viewport-pages` (planned): one PDF page per viewport-sized region.
-   * - `full-content` (planned): one very tall page containing everything.
-   *
-   * The planned values are reserved in the schema and rejected with
-   * `UNSUPPORTED_OPTION` until implemented.
+   * How screen-mode output is produced: `paper-fit` (implemented) scales
+   * the viewport to the paper width and paginates vertically; `viewport-pages`
+   * and `full-content` are reserved and rejected with `UNSUPPORTED_OPTION`
+   * until implemented.
    */
   type: z.enum(["paper-fit", "viewport-pages", "full-content"]),
 });
@@ -314,16 +284,15 @@ export const convertOptionsSchema = z
     /** Render-fidelity verification: visual comparison of the PDF against the source page. */
     fidelity: fidelitySchema.optional(),
     /**
-     * Failure forensics: record console messages, page errors, and network
-     * activity, and attach them (plus a screenshot and the DOM) to the error
-     * as `details.diagnostics` when the conversion fails. Off by default —
-     * the bundle contains page content and should be treated as sensitive.
+     * Failure forensics: console messages, page errors, and network activity
+     * (plus a screenshot and the DOM) attached as `details.diagnostics` on
+     * failure. Off by default — the bundle contains page content; treat it
+     * as sensitive.
      */
     diagnostics: z.boolean().optional(),
     /**
-     * Deterministic output: zero the PDF date stamps in place so repeated
-     * conversions of the same input are byte-identical on the same browser
-     * build. Off by default.
+     * Zero the PDF date stamps in place so repeated conversions of the same
+     * input are byte-identical on the same browser build. Off by default.
      */
     deterministic: z.boolean().optional(),
     /** Safety rails: network request and output size caps → `RESOURCE_LIMIT_EXCEEDED`. */

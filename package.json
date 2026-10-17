@@ -1,6 +1,6 @@
 {
   "name": "dom2pdf-monorepo",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.1",
   "private": true,
   "type": "module",
   "description": "dom2pdf — open-source HTML-to-PDF conversion engine (monorepo root)",

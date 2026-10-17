@@ -1,6 +1,6 @@
 {
   "name": "dom2pdf-web",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.1",
   "private": true,
   "description": "dom2pdf — local web UI: convert a target URL to PDF from your browser",
   "license": "MIT",

@@ -20,11 +20,8 @@ export interface PdfTextStats {
   perPageChars: number[];
   /** 1-based page numbers that contain no extractable text. */
   emptyPages: number[];
-  /**
-   * Raw extracted text per page, in page-tree order. A weak signal like the
-   * counts: it proves text presence, not reading order or fidelity — and
-   * text that was never painted (e.g. invisible elements) is not here.
-   */
+  /** Raw extracted text per page, page-tree order. Proves text presence only, not reading
+   * order; text that was never painted (e.g. invisible elements) is not included. */
   pages: string[];
 }
 
@@ -44,14 +41,8 @@ function readHeader(bytes: Uint8Array): string | null {
   return version.length > 0 ? version : null;
 }
 
-/**
- * Structural validation of generated output using pdfjs-dist.
- *
- * A successful parse (header + document tree + page tree) is a structural
- * check only — it says nothing about visual fidelity or reading order.
- * Text extraction (also a weak signal: presence of text, not correct reading
- * order) runs in the same parse when `extractText` is set.
- */
+/** Structural validation via pdfjs-dist: a successful parse covers header, document tree,
+ * and page tree only, not visual fidelity. `extractText` adds extraction in the same parse. */
 export async function inspectPdf(
   bytes: Uint8Array,
   options: { extractText?: boolean } = {},
@@ -67,9 +58,8 @@ export async function inspectPdf(
     });
   }
 
-  // pdfjs takes ownership of (and may transfer/detach) the provided data, and
-  // rejects Node Buffers outright — hand it a fresh plain Uint8Array copy so
-  // the caller's bytes stay intact.
+  // pdfjs takes ownership of (and may transfer/detach) the provided data and rejects Node
+  // Buffers; pass a fresh plain Uint8Array copy so the caller's bytes stay intact.
   try {
     const task = getDocument({ data: new Uint8Array(bytes), verbosity: 0 });
     try {

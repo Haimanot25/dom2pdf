@@ -4,58 +4,28 @@ import type { Logger } from "../utils/logger.js";
 /**
  * Object-aware pagination pre-pass (`pagination.keepTogether`, opt-in).
  *
- * Chromium's print engine owns pagination, and the fragmentation rules it
- * actually honors are the CSS break properties — so this pass measures each
- * candidate exactly as print will lay it out (at `contentWidth / scale`,
- * independent of the live viewport) and marks only the objects that can fit
- * on one page:
+ * Chromium's print engine honors the CSS break properties, so this pass
+ * measures each candidate at the print layout size (`contentWidth / scale`)
+ * and marks only objects that fit one page with `break-inside: avoid` —
+ * tables, figures, images, videos, code blocks, standalone SVGs, and iframe
+ * boxes. Candidates come from the document and every open shadow root
+ * (closed roots are unreachable from page script and are not scanned).
+ * Table rows are always avoid-marked (rows taller than a page still break),
+ * and tables whose `<thead>` was overridden to `table-row-group` get the
+ * repeat restored; `display: none` theads are left hidden.
  *
- * - Marked blocks get `break-inside: avoid`: page-fitting tables, figures,
- *   images, videos, code blocks, standalone SVGs, and iframe boxes never
- *   straddle a page break (verified against this Chromium build — including
- *   the iframe box, whose inner document is kept together with it).
- * - Candidates are collected from the document **and every open shadow root**
- *   (the constructed stylesheet is adopted per root — a document-level sheet
- *   does not cross the shadow boundary). Sites like MDN render their code
- *   examples inside `<mdn-code-example>` shadow roots, invisible to
- *   `document.querySelectorAll`. Closed shadow roots are not reachable from
- *   page script and are not scanned.
- * - Every table row gets `break-inside: avoid`, so a row whose box would
- *   cross a page edge is pushed whole instead of being clipped there. Rows
- *   taller than a page still break — forced breaks override avoidance.
- * - Tables whose `<thead>` was overridden to `table-row-group` (the common
- *   responsive "don't repeat the header" trick) get a scoped rule restoring
- *   `table-header-group`, so headers repeat on continuation pages. Theads
- *   hidden with `display: none` are left alone — hiding them is intentional.
+ * Two engine constraints shape the pass (verified against this Chromium
+ * build): an avoid block taller than a page overflows invisibly past the
+ * page edge, so over-tall candidates are skipped (counted as
+ * `skippedTooTall`, 95% budget); `break-after: avoid` is not honored, so no
+ * heading rules are applied.
  *
- * Two measured constraints shape the design (both verified against this
- * Chromium build, not assumed):
- *
- * 1. An avoid block *taller than a page* is pushed to the next page and then
- *    overflows past the page edge — its overflowing content renders invisible.
- *    Candidates are therefore measured at the print layout width and skipped
- *    (counted as `skippedTooTall`) when they exceed 95% of the page budget.
- * 2. `break-after: avoid` (heading + following content) is not honored by
- *    this engine, so no heading rules are applied — shipping inert CSS would
- *    be an untested claim.
- *
- * The viewport is transiently resized to the print layout size for the
- * measurement and restored immediately after; in the common case the live
- * size already matches and no resize happens.
- *
- * The stylesheet is installed as a constructed stylesheet on
- * `document.adoptedStyleSheets`, which — unlike `addStyleTag`/inline
- * `<style>`, both blocked by `style-src` without `unsafe-inline` — is not
- * subject to CSP inline-style restrictions (verified against gov.uk's
- * strict `style-src 'self'` policy, where the previous injection method was
- * refused and the pass honestly reported `skipped`).
- *
- * Failure to apply is an enrichment loss, never a conversion failure: the
- * verdict comes back as `applied: false` with the reason (reported as a
- * `render.pagination` check with status `skipped`). The stylesheet is
- * installed before any marking, so a failure inside the pass leaves at worst
- * the structural row rules active with nothing marked — and a failure before
- * the pass touches nothing at all.
+ * The stylesheet is a constructed stylesheet on `document.adoptedStyleSheets`
+ * (adopted per shadow root), which CSP `style-src` without `unsafe-inline`
+ * does not block — unlike `addStyleTag`/inline `<style>`. Failure to apply
+ * is an enrichment loss: `applied: false` with the reason, reported as a
+ * `render.pagination` check with status `skipped`, never a conversion
+ * failure.
  */
 
 export type PaginationHintsResult =
@@ -100,25 +70,14 @@ interface MarkCounts {
 
 /**
  * Runs inside the page (`page.evaluate`) — must stay fully self-contained:
- * Playwright serializes the function source, so it may not close over any
- * module scope (attribute names and the stylesheet are spelled out as
- * literals).
- *
- * The stylesheet is installed first — one constructed stylesheet adopted on
- * `document` and on every open shadow root that needs it (shadow trees can't
- * see document sheets) — as a constructed stylesheet: CSP `style-src` without
- * `unsafe-inline` blocks `addStyleTag`/inline `<style>`, but not constructed
- * sheets (verified against gov.uk). Root collection is read-only, so if the
- * install fails, the whole pass fails before touching the document.
- *
- * Runs after `emulateMedia` has selected the conversion's media and, in
- * document mode, after the transient resize to the print layout width, so
- * the rectangles it measures are the ones print pagination will see.
+ * Playwright serializes the function source, so it may not close over module
+ * scope. Installs the constructed stylesheet first (root collection is
+ * read-only, so an install failure touches nothing), and runs after media
+ * emulation and the transient resize to the print layout width, so the
+ * rectangles it measures are the ones print pagination sees.
  */
 function applyKeepHints(thresholdCssPx: number): MarkCounts {
   // ---- 1. Collect roots: the document plus every open shadow root ---------
-  // (a document-level sheet never styles shadow content; roots are collected
-  // before anything is installed, so a failure below still touches nothing).
   const roots: Array<{ root: Document | ShadowRoot; candidates: Element[] }> = [];
   const seen = new Set<Document | ShadowRoot>();
   const collect = (root: Document | ShadowRoot): void => {
@@ -170,18 +129,16 @@ tr { break-inside: avoid; page-break-inside: avoid; }
     while (node !== null) {
       const style = getComputedStyle(node);
       if (style.display === "none" || style.visibility === "hidden") return false;
-      // Fixed/sticky layers repeat or float above pagination; break rules are
-      // meaningless there, so their contents are never marked. The walk
-      // crosses shadow boundaries upward — a fixed host hides its content.
+      // Fixed/sticky layers repeat or float above pagination; break rules do
+      // not apply. The walk crosses shadow boundaries upward.
       if (style.position === "fixed" || style.position === "sticky") return false;
       node = outerOf(node);
     }
     return true;
   };
 
-  // An ancestor already kept whole covers this object; a kept host in an
-  // outer root covers shadow content (closest() stops at the shadow
-  // boundary). Counting it again would overstate the pass.
+  // An ancestor already kept whole covers this object; `closest()` stops at
+  // shadow boundaries, so kept hosts in outer roots cover their content too.
   const keptByAncestor = (element: Element): boolean => {
     if (element.closest("[data-dom2pdf-keep]") !== null) return true;
     let root = element.getRootNode();
@@ -212,8 +169,8 @@ tr { break-inside: avoid; page-break-inside: avoid; }
       if (!isRendered(table)) continue;
       const thead = table.querySelector(":scope > thead");
       if (thead === null || thead.getClientRects().length === 0) continue;
-      // Only the known "don't repeat the header" override is normalized;
-      // anything else (including a deliberately hidden thead) is left as authored.
+      // Only the "don't repeat the header" override is normalized; a thead
+      // hidden with `display: none` stays hidden.
       if (getComputedStyle(thead).display !== "table-row-group") continue;
       table.setAttribute("data-dom2pdf-repeat-header", "");
       headerTables += 1;
@@ -251,9 +208,8 @@ export async function applyPaginationHints(
       live !== null &&
       (Math.abs(live.width - targetWidth) > 1 || Math.abs(live.height - targetHeight) > 1)
     ) {
-      // Measure exactly as print will lay the document out (media is already
-      // emulated), then restore the live viewport so fidelity capture and the
-      // caller's view of the page are unaffected.
+      // Measure at the print layout size, then restore the live viewport so
+      // the fidelity capture and the caller's view are unaffected.
       restoreViewport = live;
       await page.setViewportSize({ width: targetWidth, height: targetHeight });
       logger.debug("Pagination pre-pass measuring at print layout size", {

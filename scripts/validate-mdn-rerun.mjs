@@ -1,5 +1,5 @@
-// Rerun docs-mdn (both variants) with the shadow-root + iframe coverage to
-// verify the code-example split found in the first validation pass is gone.
+// Reruns docs-mdn (both variants) to check the code example stays whole on one
+// page after the shadow-root + iframe coverage fix. Live internet, not in CI.
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
@@ -62,7 +62,7 @@ for (const variant of ["baseline", "keep"]) {
 await converter.close();
 await writeFile(path.join(outDir, "mdn-rerun.json"), JSON.stringify(rows, null, 2));
 
-// Did the code example still straddle pages 4-5?
+// Check whether the code example still straddles pages 4-5.
 const fs = await import("node:fs/promises");
 for (const variant of ["baseline", "keep"]) {
   try {
@@ -73,6 +73,6 @@ for (const variant of ["baseline", "keep"]) {
     const atStart = marker - pageStart < 80;
     console.log(`css example "line-height" on page ${pageOf(marker)}; page starts there: ${atStart}`);
   } catch {
-    /* pages file missing — already reported above */
+    /* pages file missing; already reported above */
   }
 }

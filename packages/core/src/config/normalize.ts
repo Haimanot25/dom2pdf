@@ -34,7 +34,7 @@ export const DEFAULTS = {
   deterministicEnabled: false,
   /** Object-aware pagination (keep tables/images whole across page breaks) is opt-in. */
   paginationKeepTogether: false,
-  /** Safety rails on resource usage per conversion. */
+  /** Per-conversion cap on http(s) requests. */
   limitsMaxRequests: 500,
 } as const;
 
@@ -158,18 +158,13 @@ function serializeIssues(issues: readonly ZodIssueLike[]): Array<Record<string, 
   }));
 }
 
-/** Validates raw `convert()` options.
- *
- * - Unknown keys → `UNSUPPORTED_OPTION`
- * - Reserved-but-unimplemented values → `UNSUPPORTED_OPTION`
- * - Everything else (bad values, cross-field conflicts) → `INVALID_INPUT`
- */
+/** Validates raw `convert()` options: unknown or reserved-but-unimplemented keys throw
+ * `UNSUPPORTED_OPTION`; other invalid values and conflicts throw `INVALID_INPUT`. */
 export function parseConvertOptions(raw: unknown): ConvertOptions {
   const result = convertOptionsSchema.safeParse(raw);
   if (result.success) {
     const parsed = result.data;
-    // Reserved output policies are valid schema values but not yet implemented;
-    // reject them explicitly rather than silently downgrading behavior.
+    // Reserved but not implemented; reject instead of silently downgrading behavior.
     if (parsed.outputPolicy !== undefined && parsed.outputPolicy.type !== "paper-fit") {
       throw new Dom2PdfError({
         code: "UNSUPPORTED_OPTION",
@@ -249,7 +244,6 @@ function normalizeFidelity(raw: FidelityOptions | undefined): NormalizedFidelity
   };
 }
 
-/** Validates and applies all defaults. Throws typed errors for invalid input. */
 export function normalizeOptions(raw: unknown): NormalizedOptions {
   const parsed = parseConvertOptions(raw);
   const mode = parsed.mode ?? "document";
@@ -257,8 +251,7 @@ export function normalizeOptions(raw: unknown): NormalizedOptions {
   return {
     input: parsed.input,
     mode,
-    // parseConvertOptions already rejects any policy other than paper-fit, so
-    // screen mode always normalizes to the sole implemented policy.
+    // parseConvertOptions rejected any other policy, so screen mode gets the sole implemented one.
     outputPolicy: mode === "screen" ? { type: "paper-fit" as const } : undefined,
     viewport: {
       width: parsed.viewport?.width ?? DEFAULTS.viewport.width,

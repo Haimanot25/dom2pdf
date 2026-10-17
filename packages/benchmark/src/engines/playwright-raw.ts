@@ -3,13 +3,8 @@ import type { BenchmarkScenario } from "../scenarios.js";
 import type { BenchmarkEngine, EngineAvailability, EngineTimedRun } from "./types.js";
 
 /**
- * Raw Playwright: `setContent` + `page.pdf()` on a fresh page per run, same
- * pinned Chromium as dom2pdf, print backgrounds on (dom2pdf's default).
- *
- * This is the honest baseline: it isolates what dom2pdf's pipeline
- * (readiness, policy, report) adds on top of Chromium's native PDF path. It
- * deliberately applies no readiness logic — what you pay for the extras is
- * exactly what is being measured.
+ * Raw Playwright baseline: `setContent` + `page.pdf()` on a fresh page per run,
+ * same pinned Chromium as dom2pdf, print backgrounds on, no readiness logic.
  */
 export function createPlaywrightRawEngine(): BenchmarkEngine {
   let browser: Browser | undefined;

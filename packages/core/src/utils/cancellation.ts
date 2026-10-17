@@ -5,15 +5,15 @@ export function cancelledError(message = "Conversion was cancelled"): Dom2PdfErr
   return new Dom2PdfError({ code: "CANCELLED", message });
 }
 
-/** Throws `CANCELLED` immediately if the signal is already aborted. */
+/** Throws `CANCELLED` if the signal is already aborted. */
 export function throwIfAborted(signal: AbortSignal | undefined): void {
   if (signal?.aborted === true) throw cancelledError();
 }
 
 /**
- * Races `promise` against the signal. On abort, rejects with `CANCELLED`
- * immediately (the underlying operation is unwound by context cleanup) and
- * always removes the abort listener.
+ * Races `promise` against the signal and rejects with `CANCELLED` on abort
+ * (the underlying operation is unwound by context cleanup). The abort
+ * listener is always removed.
  */
 export async function raceWithAbort<T>(
   promise: Promise<T>,
@@ -22,7 +22,7 @@ export async function raceWithAbort<T>(
 ): Promise<T> {
   if (signal === undefined) return promise;
   if (signal.aborted) {
-    // Keep a handler attached so a later rejection is never "unhandled".
+    // Attach a no-op handler so a later rejection is not unhandled.
     promise.catch(() => undefined);
     throw cancelledError(message);
   }

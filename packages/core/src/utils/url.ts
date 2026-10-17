@@ -1,14 +1,10 @@
-/** URL helpers focused on making URLs safe to print in logs and errors. */
+/** URL helpers for making URLs safe to print in logs and errors. */
 
 const SENSITIVE_QUERY_PARAM = /^(?:token|key|secret|password|passwd|sig|signature|access_token|refresh_token|id_token|api_key|apikey|auth|authorization|session|code)$/i;
 
 /**
- * Returns a representation of `input` that is safe to embed in logs, error
- * messages, and reports: userinfo (credentials) removed, sensitive query
- * parameters redacted, and the fragment dropped entirely.
- *
- * Unparseable input is returned truncated rather than thrown, because this is
- * used on the error path.
+ * Returns `input` safe for logs and errors: userinfo removed, sensitive query
+ * parameters redacted, fragment dropped; unparseable input is truncated, not thrown.
  */
 export function sanitizeUrl(input: string | URL): string {
   const raw = typeof input === "string" ? input : input.href;
@@ -29,16 +25,13 @@ export function sanitizeUrl(input: string | URL): string {
   }
   url.search = params.toString();
   const result = url.toString();
-  // WHATWG keeps a trailing "?" for empty queries; drop it for cleanliness.
+  // WHATWG keeps a trailing "?" for empty queries; drop it.
   return result.endsWith("?") ? result.slice(0, -1) : result;
 }
 
 /**
- * Scrubs `scheme://user:password@host` userinfo from free-form error text.
- * Playwright net errors embed the request URL verbatim (credentials included);
- * anything used as a human-readable message must go through this. The
- * `//…@` shape anchors it so prose like an email address (no leading `//`) is
- * left alone.
+ * Scrubs `scheme://user:password@host` userinfo from free-form text (Playwright
+ * net errors embed URLs verbatim); the `//…@` anchor leaves emails alone.
  */
 export function redactUrlCredentials(text: string): string {
   return text.replace(/\/\/[^/\s:@]+(?::[^/\s@]*)?@/g, "//REDACTED@");

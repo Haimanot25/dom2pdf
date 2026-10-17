@@ -1,9 +1,6 @@
 /**
- * Minimal structured logger.
- *
- * The library never writes conversion artifacts or credentials to logs;
- * `sanitizeUrl` (utils/url.ts) must be applied to any URL before logging.
- * Callers can plug in their own sink (the CLI writes to stderr).
+ * Minimal structured logger. Apply `sanitizeUrl` (utils/url.ts) to any URL
+ * before logging; callers can plug in their own sink.
  */
 
 export type LogLevel = "debug" | "info" | "warn" | "error" | "silent";
@@ -41,7 +38,7 @@ const LEVEL_ORDER: Record<Exclude<LogLevel, "silent">, number> = {
   error: 40,
 };
 
-// The default sink is the only place in the core library permitted to touch stdio.
+// The default sink is the only core code that writes to stdio.
 /* eslint-disable no-console */
 function defaultSink(record: LogRecord): void {
   const line = `[dom2pdf] ${record.scope}: ${record.message}`;
@@ -93,7 +90,7 @@ export function createLogger(options: LoggerOptions = {}): Logger {
   return build("");
 }
 
-/** A logger that drops everything; convenient default for tests. */
+/** Drops everything; default for tests. */
 export function createSilentLogger(): Logger {
   return createLogger({ level: "silent" });
 }

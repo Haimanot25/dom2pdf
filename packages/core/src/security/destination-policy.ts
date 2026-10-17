@@ -5,16 +5,7 @@ import path from "node:path";
 import { Dom2PdfError } from "../errors/index.js";
 import { sanitizeUrl } from "../utils/url.js";
 
-/**
- * Destination and filesystem policies.
- *
- * Layered SSRF defense (see docs/security.md): this module checks the
- * *explicit* destination before navigation — protocol, IP-literal
- * classification, and a pre-navigation DNS resolution whose *every* address is
- * classified. Browser-side request interception is a second, independent layer
- * (Phase 5), and deployments must additionally enforce egress rules, because
- * no in-process check can fully defeat DNS rebinding.
- */
+/** Destination and filesystem policies; layered SSRF defense, see docs/security.md. */
 
 export interface DestinationPolicy {
   allowLoopback: boolean;
@@ -34,7 +25,7 @@ export interface ResolvedAddress {
 
 export type DnsLookup = (hostname: string) => Promise<ResolvedAddress[]>;
 
-/** Default DNS check: OS-level resolution of *every* address for the hostname. */
+/** Default DNS check: OS-level resolution of every address for the hostname. */
 export const systemDnsLookup: DnsLookup = async (hostname) => {
   try {
     return await lookup(hostname, { all: true });
@@ -113,8 +104,7 @@ function classifyIpv6(ip: string): IpClassification {
   if (h[0] === 0 && isZeroes(1, 7) && h[7] === 1) return "loopback"; // ::1
   if (h.every((v) => v === 0)) return "reserved"; // ::
 
-  // IPv4-mapped (::ffff:a.b.c.d) and deprecated IPv4-compatible (::a.b.c.d)
-  // forms classify as their embedded IPv4 address.
+  // IPv4-mapped (::ffff:a.b.c.d) and deprecated IPv4-compatible (::a.b.c.d) classify as the embedded IPv4.
   const c = h[6] ?? 0;
   const d = h[7] ?? 0;
   if (isZeroes(0, 5) && (h[5] === 0xffff || h[5] === 0) && (c !== 0 || d !== 0)) {
@@ -163,7 +153,6 @@ function blocked(
   });
 }
 
-/** Throws `BLOCKED_URL` when `ip` is not permitted by `policy`. */
 export function assertIpAllowed(ip: string, policy: DestinationPolicy, url: URL): void {
   const classification = classifyIp(ip);
   switch (classification) {
@@ -182,11 +171,7 @@ export function assertIpAllowed(ip: string, policy: DestinationPolicy, url: URL)
 
 const ALLOWED_PROTOCOLS = new Set(["http:", "https:"]);
 
-/**
- * Validates an explicit navigation URL: parses it, enforces the protocol
- * allowlist, classifies IP literals, and (for hostnames) resolves DNS first and
- * classifies every returned address.
- */
+/** Validates a URL against the protocol allowlist and policy; every DNS-returned address is classified. */
 export async function assertUrlDestinationAllowed(
   rawUrl: string,
   policy: DestinationPolicy,
@@ -235,15 +220,7 @@ export async function assertUrlDestinationAllowed(
   return url;
 }
 
-/**
- * Validates a local file path against the explicit allowlist and returns its
- * canonical (symlink-resolved) absolute path.
- *
- * Local input is opt-in (`security.allowLocalFiles` + at least one directory in
- * `security.allowedLocalDirectories`), restricted to `.html`/`.htm`, and
- * symlinks cannot escape the allowed directories because containment is checked
- * after `realpath`.
- */
+/** Containment is checked after `realpath`, so symlinks cannot escape the allowed directories. */
 export async function assertLocalFileAllowed(rawPath: string, policy: LocalFilePolicy): Promise<string> {
   if (!policy.allowLocalFiles || policy.allowedLocalDirectories.length === 0) {
     throw new Dom2PdfError({

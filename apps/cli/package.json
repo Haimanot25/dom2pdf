@@ -1,8 +1,17 @@
 {
   "name": "dom2pdf-cli",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.1",
   "description": "dom2pdf — command-line HTML-to-PDF conversion and PDF inspection",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Haimanot25/dom2pdf.git",
+    "directory": "apps/cli"
+  },
+  "homepage": "https://github.com/Haimanot25/dom2pdf#readme",
+  "bugs": {
+    "url": "https://github.com/Haimanot25/dom2pdf/issues"
+  },
   "type": "module",
   "bin": {
     "dom2pdf": "./dist/index.js"

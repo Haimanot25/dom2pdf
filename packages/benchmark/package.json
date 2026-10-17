@@ -1,8 +1,17 @@
 {
   "name": "dom2pdf-benchmark",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.1",
   "description": "dom2pdf — deterministic HTML-to-PDF benchmark harness (dom2pdf, raw Playwright, html2pdf.js, WeasyPrint)",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Haimanot25/dom2pdf.git",
+    "directory": "packages/benchmark"
+  },
+  "homepage": "https://github.com/Haimanot25/dom2pdf#readme",
+  "bugs": {
+    "url": "https://github.com/Haimanot25/dom2pdf/issues"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

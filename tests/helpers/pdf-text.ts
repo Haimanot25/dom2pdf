@@ -1,13 +1,11 @@
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 
 /**
- * Extracts text per page with pdfjs-dist for assertions that output remains
- * selectable/searchable. Text presence does NOT imply correct reading order,
- * complete coverage, or accessibility — only that glyphs were emitted as text.
+ * Extracts text per page with pdfjs-dist. Text presence proves only that
+ * glyphs were emitted as text, not reading order, coverage, or accessibility.
  */
 export async function extractPdfText(bytes: Uint8Array): Promise<string[]> {
-  // `new Uint8Array(bytes)` copies into a plain Uint8Array: pdfjs rejects Node
-  // Buffers, and Buffer#slice would return a shared view rather than a copy.
+  // Copies into a plain Uint8Array: pdfjs rejects Node Buffers, and Buffer#slice is a shared view.
   const task = getDocument({ data: new Uint8Array(bytes), verbosity: 0 });
   try {
     const document = await task.promise;

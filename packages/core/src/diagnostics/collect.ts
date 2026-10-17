@@ -3,24 +3,8 @@ import { isDom2PdfError } from "../errors/index.js";
 import { withTimeout } from "../utils/async.js";
 import { sanitizeUrl } from "../utils/url.js";
 
-/**
- * Failure forensics ("diagnostics").
- *
- * When `diagnostics: true` is set, the conversion records console messages,
- * uncaught page exceptions, and network activity from the moment the page is
- * created. If the conversion then fails, the captured state — plus a
- * best-effort screenshot and serialized DOM — is attached to the error as
- * `error.details.diagnostics`.
- *
- * Everything here is best effort by design: forensics must never mask, delay,
- * or replace the original failure. Collection steps are individually guarded
- * and bounded (ring buffers, size caps, a gather deadline), cancellation is
- * never delayed for forensics, and a failed step is reported in
- * `incomplete[]` instead of being silently dropped.
- *
- * The bundle contains page content (DOM, screenshot, console text) — treat it
- * as sensitive as the page itself.
- */
+/** Console/network capture for `diagnostics: true`; on failure attached as `error.details.diagnostics`.
+ * Collection never delays or masks the original failure; the bundle contains page content. */
 
 /** Per-entry text cap for console messages and page errors. */
 export const CONSOLE_TEXT_CAP = 2_000;
@@ -74,7 +58,7 @@ export interface DiagnosticsBundle {
   screenshotJpegBase64?: string;
   /** Serialized DOM, capped at `DOM_CAP_CHARS` characters. */
   dom?: string;
-  /** Capture steps that could not run, with the reason — never silent. */
+  /** Capture steps that could not run, with the reason. */
   incomplete?: string[];
 }
 
@@ -96,11 +80,7 @@ function isHttpUrl(url: string): boolean {
   return url.startsWith("http://") || url.startsWith("https://");
 }
 
-/**
- * Attaches console/pageerror/network listeners to the page, keeping bounded
- * buffers. Only http(s) requests are recorded (`data:`/`blob:` URLs have no
- * server outcome and no forensic value here).
- */
+/** Attaches console/pageerror/network listeners with bounded buffers; records only http(s) requests. */
 export function installDiagnosticsCapture(page: Page): DiagnosticsCapture {
   const console_ = [] as ConsoleEntry[];
   const pageErrors: string[] = [];
@@ -214,12 +194,8 @@ async function captureArtifacts(page: Page, incomplete: string[]): Promise<{
   };
 }
 
-/**
- * Snapshots the captured state plus best-effort artifacts. Never throws: a
- * step that cannot run is recorded in `incomplete[]`. The whole artifact
- * phase is bounded by `GATHER_DEADLINE_MS` so a hung page cannot stall the
- * error path.
- */
+/** Never throws; failed steps go to `incomplete[]`. Artifact capture is bounded by
+ * `GATHER_DEADLINE_MS` so a hung page cannot stall the error path. */
 export async function gatherDiagnostics(page: Page, capture: DiagnosticsCapture): Promise<DiagnosticsBundle> {
   const incomplete: string[] = [];
   let url: string | null = null;
@@ -253,10 +229,7 @@ export async function gatherDiagnostics(page: Page, capture: DiagnosticsCapture)
   };
 }
 
-/**
- * Attaches a bundle to the failure. Works for `Dom2PdfError` (merged into
- * `details`) and for plain errors that the outer converter wraps later.
- */
+/** Sets `details.diagnostics`; also works on plain errors wrapped later by the converter. */
 export function attachDiagnostics(error: unknown, bundle: DiagnosticsBundle): void {
   if (typeof error !== "object" || error === null) return;
   const existing = (error as { details?: Record<string, unknown> }).details;
@@ -273,7 +246,7 @@ function isDiagnosticsBundle(value: unknown): value is DiagnosticsBundle {
   );
 }
 
-/** Recovers a bundle previously attached with `attachDiagnostics`. */
+/** Reads a bundle previously attached with `attachDiagnostics`. */
 export function readAttachedDiagnostics(error: unknown): DiagnosticsBundle | undefined {
   if (typeof error !== "object" || error === null) return undefined;
   const details = (error as { details?: Record<string, unknown> }).details;
@@ -281,7 +254,7 @@ export function readAttachedDiagnostics(error: unknown): DiagnosticsBundle | und
   return isDiagnosticsBundle(bundle) ? bundle : undefined;
 }
 
-/** Cancellation must stay prompt — forensics never delay or mask it. */
+/** True for `CANCELLED` errors, which bypass diagnostics entirely. */
 export function isCancellation(cause: unknown): boolean {
   return isDom2PdfError(cause) && cause.code === "CANCELLED";
 }

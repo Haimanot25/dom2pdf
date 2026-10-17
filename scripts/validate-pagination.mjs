@@ -1,10 +1,5 @@
-// Real-world validation run for pagination.keepTogether + overall system
-// performance: converts 10 different site types twice each (baseline vs
-// keepTogether), saves the PDFs side by side, extracts per-page text for
-// split analysis, and writes a markdown summary.
-//
-// Not part of the test suite (live internet = non-deterministic); a manual
-// validation harness, like the earlier real-world matrix.
+// Converts 10 site types twice each (baseline vs keepTogether); writes PDFs,
+// per-page text, and a markdown summary. Manual harness; live internet, not in CI.
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { performance } from "node:perf_hooks";

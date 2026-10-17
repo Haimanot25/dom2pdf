@@ -8,17 +8,9 @@ function isTimeoutError(value: unknown): boolean {
 }
 
 /**
- * Loads the planned input into the page within `timeoutMs`.
- *
- * Navigation waits for DOMContentLoaded, not the full `load` event: subresource
- * settling (images, fonts, network quiet) is the readiness phase's job, where
- * each pending resource gets its own `slowResourceMs` patience. Waiting for
- * `load` here would let one hanging image in the initial document spend the
- * entire deadline before readiness could even start.
- *
- * - Navigation timeouts map to `READINESS_TIMEOUT` (they consume the overall
- *   readiness deadline).
- * - Other navigation failures map to `NAVIGATION_FAILED` with the cause kept.
+ * Loads the planned input within `timeoutMs`, waiting on `domcontentloaded` only:
+ * subresource settling belongs to the readiness phase. Timeouts map to
+ * `READINESS_TIMEOUT`, other failures to `NAVIGATION_FAILED`.
  */
 export async function applyInput(page: Page, plan: InputPlan, timeoutMs: number): Promise<void> {
   if (plan.kind === "navigate") {
@@ -28,9 +20,7 @@ export async function applyInput(page: Page, plan: InputPlan, timeoutMs: number)
     } catch (cause) {
       throw wrapNavigationFailure(cause, { url: sanitizeUrl(plan.url), source: plan.source, timeoutMs });
     }
-    // Chromium's `goto` treats HTTP error statuses as successful navigations
-    // (it would print the error body); dom2pdf surfaces them as failures
-    // instead of silently producing a "successful" PDF of a 404 page.
+    // Playwright treats HTTP >= 400 as a successful navigation; status is checked explicitly.
     if (response !== null && response.status() >= 400) {
       throw new Dom2PdfError({
         code: "NAVIGATION_FAILED",
@@ -54,7 +44,7 @@ export async function applyInput(page: Page, plan: InputPlan, timeoutMs: number)
 
 function wrapNavigationFailure(cause: unknown, details: Record<string, unknown>): Dom2PdfError {
   if (cause instanceof Dom2PdfError) return cause;
-  // Playwright net errors embed the request URL verbatim — credentials included.
+  // Playwright net errors embed the request URL verbatim, credentials included.
   const message = redactUrlCredentials(cause instanceof Error ? cause.message : String(cause));
   if (isTimeoutError(cause)) {
     return new Dom2PdfError({

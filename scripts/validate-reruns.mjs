@@ -1,7 +1,5 @@
-// Reruns for the validation findings: gov.uk keep (CSP fix), ja.wikipedia
-// (raised render deadline — default 30s timed out on both variants), BBC
-// baseline (the first run hit READINESS_TIMEOUT while the keep run settled —
-// checking run-to-run variance on this heavy page).
+// Reruns gov.uk keep, both ja.wikipedia variants (default 30s render deadline
+// timed out), and BBC baseline (READINESS_TIMEOUT variance). Live internet, not in CI.
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
