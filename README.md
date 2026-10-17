@@ -1,25 +1,116 @@
+<div align="center">
+
 # dom2pdf
 
-**dom2pdf** is an open-source HTML-to-PDF conversion engine built on Playwright's Chromium. It converts URLs, HTML strings, and explicitly-permitted local HTML files into PDFs that preserve website appearance as closely as the browser and the PDF format allow, keeping text selectable and searchable wherever possible.
+**HTML → PDF, with receipts.**
 
-> **Status: `v0.1.0-alpha.1` (pre-1.0 — the API may move in minor releases; error codes may be added).** Both rendering modes work — `document` (print CSS) and `screen` (paper-fit output policy) — the readiness phase (including adaptive per-resource patience and the scroll-driven content drain: lazy markers, infinite scroll, reveal-on-scroll) plus structured quality checks/policies are in place, every conversion verifies its own output (render-fidelity comparison against the live page, failure forensics, optional byte-reproducible output), the `dom2pdf` CLI (`convert`, `inspect`, `benchmark`) and the local `dom2pdf-web` UI are usable, every conversion runs behind an enforced request policy with resource limits, CI runs the full gate, and the production Docker image keeps Chromium's sandbox on. See [Roadmap](#roadmap) — no feature is documented here before it works.
+Waits until the page is *actually* ready, prints it with Chromium, then
+re-opens the PDF and checks it against the live page. Every conversion ends in
+a measured quality report — never a hopeful exit 0.
 
-## Quick start
+[![CI](https://github.com/Haimanot25/dom2pdf/actions/workflows/ci.yml/badge.svg)](https://github.com/Haimanot25/dom2pdf/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/dom2pdf-js?label=npm&color=cb3837)](https://www.npmjs.com/package/dom2pdf-js)
+[![node](https://img.shields.io/badge/node-%E2%89%A522.13-339933)](https://nodejs.org)
+[![license](https://img.shields.io/badge/license-MIT-2ea44f)](LICENSE)
+
+</div>
+
+---
+
+## Sound familiar?
+
+Your Puppeteer one-liner "works" — until it doesn't:
+
+- Lazy-loaded sections print as **blank space** nobody sees until the customer
+  complains.
+- A web font hangs, a fallback sneaks in, and the report looks **off-brand**.
+- A table row gets **sliced in half** across a page break.
+- A hung image request burns the whole timeout and the run **dies at 3 a.m.**
+- The script exits `0`, bytes are written — and the PDF bears **no resemblance**
+  to the page. You find out from an email, not from code.
+
+The browser will print whatever is on screen, including its mistakes. What's
+missing isn't a renderer — Chromium is excellent — it's everything around it:
+waiting, guarding, verifying, and telling the truth about what happened.
+
+**That's the whole product.** dom2pdf wraps the print in a pipeline that ends
+in evidence:
+
+```jsonc
+// result.report — trimmed; every field measured, every skip explained
+{
+  "status": "succeeded",
+  "durationMs": 2841,
+  "timings": { "readinessMs": 903, "renderMs": 612 },
+  "mode": "document",
+  "browser": { "name": "chromium", "version": "156.0.8078.4" },
+  "pdf": { "byteLength": 184320, "pageCount": 3, "headerVersion": "1.7" },
+  "checks": [
+    { "id": "pdf-structure", "status": "pass",
+      "detail": "PDF parsed successfully: 3 page(s), 184320 bytes, header %PDF-1.7" },
+    { "id": "render.fidelity", "status": "pass", "detail": "…" }
+  ],
+  "warnings": [
+    { "code": "resources.slow", "message": "…", "source": "observed" }
+  ],
+  "fidelity": { "status": "measured", "score": 0.97, "threshold": 0.8,
+                "sampledPages": [1, 2, 3] }
+}
+```
+
+Numbers are from a representative run; the *shape* is the contract. Want the
+PDF rejected when reality misses your expectations? Say so once:
+
+```ts
+quality: { minTextChars: 500, maxPages: 4 }
+// → QUALITY_POLICY_FAILED, carrying details.violations + the full report
+```
+
+## How a conversion works
+
+```text
+  URL / HTML / file
+        │
+  ┌─────▼──────┐  validate input, reject unknown options,
+  │ pre-flight │  arm destination policy (SSRF guard) + limits
+  ├────────────┤
+  │  navigate  │  one shared deadline governs everything below
+  ├────────────┤
+  │  readiness │  lazy-load sweep · infinite-scroll drain ·
+  │            │  reveal-on-scroll · fonts · images ·
+  │            │  per-resource patience · network settle
+  ├────────────┤
+  │   render   │  animations settled · print CSS ·
+  │            │  optional object-aware pagination
+  ├────────────┤
+  │  verify    │  PDF re-rasterized → per-page SSIM vs the
+  │            │  live page at the same print layout
+  ├────────────┤
+  │  report    │  checks · warnings · timings · fidelity
+  └────────────┘  an honest "skipped" beats a fabricated score
+```
+
+## Install
 
 ```bash
-# Library
-pnpm build
-
-# CLI (from this repository)
-pnpm dom2pdf convert https://example.com -o example.pdf
-pnpm dom2pdf convert ./report.html --format A4 --margin 15mm --json
-pnpm dom2pdf inspect example.pdf
-pnpm dom2pdf benchmark --iterations 3 --scenarios simple   # multi-engine benchmark
-
-# Local web UI — open the printed URL, paste a target URL, get a PDF
-pnpm web                                     # http://127.0.0.1:8787
-pnpm web --port 9000 --allow-loopback        # custom port; test localhost targets
+npm i dom2pdf-js        # library — installs a pinned Chromium build
+npm i -g dom2pdf-cli    # CLI — the `dom2pdf` binary
 ```
+
+Node.js ≥ 22.13. pnpm/yarn work the same way.
+
+## First conversion
+
+**CLI**
+
+```bash
+dom2pdf convert https://example.com -o example.pdf
+dom2pdf convert ./invoice.html --format A4 --margin 15mm --json
+dom2pdf inspect example.pdf          # pages, bytes, text stats of any PDF
+dom2pdf benchmark --iterations 3     # deterministic multi-engine benchmark
+```
+
+**Library**
 
 ```ts
 import { createConverter } from "dom2pdf-js";
@@ -27,94 +118,158 @@ import { createConverter } from "dom2pdf-js";
 const converter = await createConverter();
 try {
   const result = await converter.convert({
-    input: { type: "html", html: "<!doctype html><html><body><h1>Hello</h1></body></html>" },
-    mode: "document",
+    input: { type: "url", url: "https://example.com/report" },
     pdf: { format: "A4", printBackground: true },
     readiness: { timeoutMs: 30_000 },
   });
-
-  await result.save("./output.pdf");
-  console.log(result.report); // structured quality report with measured values
+  await result.save("./report.pdf");
+  console.log(result.report.fidelity); // { status: "measured", score: 0.97, … }
 } finally {
   await converter.close();
 }
 ```
 
-### Rendering modes
+Inputs: `{ type: "url", url }` · `{ type: "html", html, baseUrl? }` ·
+`{ type: "file", path }` (opt-in allowlist). Conversions take an
+`AbortSignal` and fail fast with `CANCELLED`.
+
+**Local web UI**
+
+```bash
+git clone https://github.com/Haimanot25/dom2pdf && cd dom2pdf
+pnpm install && pnpm build
+pnpm web                              # http://127.0.0.1:8787
+```
+
+A dark-first single page: paste a URL, flip options, download the PDF. The full
+security policy applies — the UI cannot escalate anything.
+
+**Docker**
+
+```bash
+docker build -t dom2pdf .
+docker run --rm -v "$PWD:/work" dom2pdf convert https://example.com -o /work/out.pdf
+```
+
+## What you actually get
+
+**⏳ Readiness that understands the modern web.** Before printing, dom2pdf
+walks scrollable pages to trigger `loading="lazy"` content, infinite-scroll
+feeds, and reveal-on-scroll animations — the patterns that otherwise print as
+blank space. It waits for fonts and images, and gives each slow resource its
+own patience (`slowResourceMs`) so one hung asset costs a warning, not the
+run. Chatty pages (analytics beacons) don't fail the deadline either — they
+end in an honest `readiness.network-unsettled` warning.
+
+**🔍 Output verified against reality.** Sampled pages of the produced PDF are
+re-rasterized inside Chromium and compared, page by page, against screenshots
+of the live page (SSIM + perceptual hash + alignment). Below your threshold →
+a `render.fidelity` warning. Unverifiable layouts report `skipped` with the
+reason. Scores are never fabricated, and nothing here claims
+pixel-perfection — see [Honest limits](#honest-limits).
+
+**🧾 Failure forensics.** Set `diagnostics: true` and a failed conversion
+attaches the console transcript, network log, DOM, and a screenshot of what
+the page was doing at that moment (`error.details.diagnostics`; the CLI writes
+it to `<output>.diag/` with `--diagnostics`; always on in the web UI). Debugging
+from the error message alone is over.
+
+**🔁 Byte-identical reruns.** `deterministic: true` zeroes Chromium's date
+stamps in place so repeated conversions on the same browser build are
+byte-identical, with a content digest over extracted text for independent
+verification. Golden-file tests stop being flaky.
+
+**🧱 Object-aware pagination.** Opt in with `pagination: { keepTogether: true }`
+(CLI `--keep-together`): page-fitting tables, figures, images, videos, code
+blocks, and standalone SVGs stay whole across breaks, table rows are never
+clipped at a page edge, and overridden `<thead>` headers repeat on
+continuation pages. Off by default, so pagination is byte-for-byte unchanged
+unless you ask.
+
+**🛡️ Secure by default.** Chromium's sandbox stays **on** (Playwright's default
+turns it off). Private, loopback, and link-local destinations are blocked
+unless explicitly allowed — the page and its subresources, redirects
+included. Local file reads require an explicit directory allowlist, with
+symlink-escape detection. Unknown options are rejected (`UNSUPPORTED_OPTION`),
+never silently ignored.
+
+**📊 Benchmark harness included.** `dom2pdf benchmark` compares dom2pdf against
+raw Playwright, html2pdf.js, and WeasyPrint on deterministic fixtures — with
+strict methodology rules and honest skips when an engine isn't available.
+
+## Rendering modes
 
 | Mode | What it does | Output policy |
 | --- | --- | --- |
-| `document` (default) | Print CSS media; author print styles and `@page` rules apply (via `pdf.preferCSSPageSize`) | paper config: `format`/`width`/`height`, `margin`, `landscape`, `scale` |
-| `screen` | Screen CSS media at your viewport, then paginated | `paper-fit` (implemented): viewport scaled exactly onto the paper width; `viewport-pages`/`full-content` are reserved and rejected with `UNSUPPORTED_OPTION` |
+| `document` (default) | Print CSS media; your `@page` and print styles apply | paper config: `format`/`width`/`height`, `margin`, `landscape`, `scale` |
+| `screen` | Screen CSS media at your viewport, paginated onto paper | `paper-fit`: viewport scaled exactly onto the paper width (`viewport-pages`/`full-content` reserved for later) |
 
-Screen mode reports its measured fit (`screen.output-policy` check) plus heuristic warnings for horizontal overflow, fixed/sticky elements, and scroll containers.
+## How it compares
 
-In both modes the capture is taken with CSS/Web-Animations animations settled at their end state, so a printout shows the finished page rather than a mid-animation frame.
+Compiled from each project's public documentation (Oct 2026) — verify what
+matters to you.
 
-### Object-aware pagination (opt-in)
+| | **dom2pdf** | `page.pdf()`<br>Puppeteer / Playwright | Gotenberg | WeasyPrint | wkhtmltopdf | html2pdf.js |
+| --- | --- | --- | --- | --- | --- | --- |
+| Renderer | pinned Chromium | your Chromium | Chromium (Docker) | Python, no JS engine | Qt WebKit (unmaintained) | html2canvas → **image** |
+| Runs the page's JS | ✓ | ✓ | ✓ | ✗ | partial | only what already ran |
+| Waits for lazy / infinite-scroll content | ✓ built-in | your code | your code | n.a. | n.a. | your code |
+| Hung asset ≠ failed run (per-resource patience) | ✓ | your code | your code | n.a. | n.a. | n.a. |
+| PDF re-verified against the live page | ✓ SSIM | — | — | — | — | — |
+| Structured quality report | ✓ | — | — | — | — | — |
+| Failure forensics bundle (DOM + screenshot + console) | ✓ | — | — | — | — | — |
+| Byte-reproducible output option | ✓ | — | — | — | — | — |
+| Text in output selectable & searchable | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ (rasterized) |
+| SSRF guard + sandbox-on default | ✓ | — / sandbox off | deployment's job | n.a. | n.a. | n.a. |
+| Interfaces | library · CLI · local web UI | library | HTTP API (Docker) | Python library | CLI | browser library |
 
-`pagination: { keepTogether: true }` (CLI: `--keep-together`) stops the common print awkwardness — off by default, so pagination is unchanged unless you ask for it. dom2pdf measures each candidate exactly as print will lay it out and applies only the fragmentation rules this Chromium build actually honors (verified, not assumed): page-fitting tables, figures, images, videos, code blocks, and standalone SVGs stay whole across a page break; a table row whose box would cross a page edge is pushed whole instead of being clipped there; and tables whose `<thead>` was overridden to `table-row-group` (the responsive "don't repeat" trick) get their headers repeated on continuation pages. Objects taller than one page are deliberately *not* kept — Chromium would push an avoid block it cannot fit past the page edge and silently hide its bottom — and the `render.pagination` check reports what was kept, what repeats, and what was skipped (including why, when `pdf.preferCSSPageSize` leaves the paper unknown). One honest caveat: fidelity compares against the unpaginated source, so pages whose objects moved can score lower.
+"your code" = the underlying tool can do it, but nothing is built in — that
+pile of scripts is exactly what dom2pdf replaces. "n.a." = the pipeline has no
+browser.
 
-### Readiness
+If you hand-author print CSS and can pay for a license, Prince XML remains the
+gold standard — dom2pdf is for converting **the web you don't control**, in
+Node, with verification attached.
 
-After navigation, every conversion waits (under the single `readiness.timeoutMs` deadline) for the page to actually settle. Defaults: fonts settled (`fonts: true`), all images finished (`images: true`), and 300ms without network activity (`networkIdleMs: 300`, `0` disables). Pages with requests genuinely still loading when the deadline expires fail with `READINESS_TIMEOUT` naming the stage instead of hanging; purely *chatty* pages (analytics beacons that keep the activity clock fresh while nothing transfers — news homepages) no longer fail: readiness stops at its own stage budget and proceeds with an honest `readiness.network-unsettled` warning.
+## Who is this for
 
-Scrollable documents are also walked first (bounded, `readiness.lazyLoad`, default `true`) so scroll-driven content is actually present in the capture: `loading="lazy"` markers, fetch-on-scroll feeds (infinite scroll), and reveal-on-scroll animations that keep sections at `opacity: 0` until an observer fires — the pattern that otherwise prints as blank space. The sweep runs under its own time budget (it stops and reports `truncated` rather than spending the deadline the essential checks need — a slow sweep costs a warning, never a failed conversion), and the `readiness` check detail reports what it did (steps taken, large blocks revealed, blocks still hidden).
+- **Invoice / receipt / statement generators** where print CSS fidelity is the product
+- **Report exporters** turning dashboards into client-ready PDFs
+- **Archival & audit pipelines** that need byte-stable, reproducible artifacts
+- **Security-conscious teams** converting untrusted URLs behind strict defaults
+- **Anyone whose Puppeteer one-liner grew teeth** and now needs deadlines,
+  limits, and evidence instead of hope
 
-```ts
-await converter.convert({
-  input: { type: "url", url: "https://example.com/report" },
-  readiness: {
-    timeoutMs: 30_000,
-    selector: "#app",            // wait until visible
-    waitForFonts: ["Inter"],     // wait for declared @font-face loads
-    settleMs: 200,               // extra quiet period
-    networkIdleMs: 300,          // or 0 to disable
-  },
-});
-```
+## Honest limits
 
-### Quality report & policies
+Said out loud, because the tool's job is telling you the truth:
 
-Every successful conversion returns a structured report: `checks` (`pdf-structure`, `readiness`, `resources`, `pdf-text`, `render.fidelity`, and mode-specific ones), `warnings` (each labeled `observed` = measured, or `heuristic` = estimated), `timings`, and measured PDF facts. Resource problems (failed requests, HTTP ≥ 400, broken images, failed web fonts) and empty pages surface as warnings with stable codes.
+- **Alpha.** `v0.1.0-alpha.x` — the API may move in minor releases; error
+  codes may be added. Pin your version.
+- **Not pixel-perfect.** Fidelity is an SSIM heuristic: great at catching
+  blank sections, broken fonts, and mangled layout; a score near the threshold
+  is a judgment call, which is why the threshold is yours to set.
+- **`screen` mode** implements `paper-fit`; `viewport-pages` and `full-content`
+  are reserved in the schema and rejected with `UNSUPPORTED_OPTION` until they
+  ship. No feature is documented here before it works.
+- **Closed shadow DOM** and **cross-origin iframe interiors** are not scanned
+  for pagination candidates.
+- Kept-together objects move content across pages, so fidelity on affected
+  pages can score lower than the unpaginated reference.
+- Chromium needs a real OS environment — use the provided Dockerfile on
+  serverless.
 
-Policies compare measured output against your expectations and fail with `QUALITY_POLICY_FAILED` (carrying `details.violations` plus the full report):
+## Errors & exit codes
 
-```ts
-await converter.convert({
-  input: { type: "url", url: "https://example.com/invoice" },
-  quality: { minTextChars: 500, minPages: 1, maxPages: 4, failOnWarnings: false },
-});
-```
+Every failure is a `Dom2PdfError` with a stable `code` you can branch on:
+`INVALID_INPUT` · `UNSUPPORTED_OPTION` · `BLOCKED_URL` · `BLOCKED_REDIRECT` ·
+`BLOCKED_RESOURCE` · `LOCAL_FILE_NOT_ALLOWED` · `NAVIGATION_FAILED` ·
+`READINESS_TIMEOUT` (names the stage) · `RENDER_TIMEOUT` ·
+`PDF_VALIDATION_FAILED` · `RESOURCE_LIMIT_EXCEEDED` · `QUALITY_POLICY_FAILED` ·
+`BROWSER_FAILURE` · `CANCELLED` · `CONVERTER_CLOSED`.
 
-### Verified output
-
-Every conversion can verify itself after rendering — none of this claims pixel-perfectness; each measurement is a heuristic with honest skip rules:
-
-- **Render fidelity** (on by default): sampled pages of the produced PDF are re-rasterized inside Chromium (pdf.js) and compared, page by page, against screenshots of the live page at the print layout width. `report.fidelity` carries per-page SSIM / pHash / alignment; below `fidelity.threshold` (default `0.8`) you get a `render.fidelity` warning. Unverifiable layouts (header/footer templates, unmappable `pageRanges`) report `status: "skipped"` with the reason — scores are never fabricated.
-- **Failure forensics** (`diagnostics: true`, always on in the web UI): on failure, `error.details.diagnostics` carries the console transcript, failed requests, the DOM, and a screenshot of what the page was doing. The CLI writes it to `<output>.diag/` with `--diagnostics`.
-- **Deterministic output** (`deterministic: true` / `--deterministic`): Chromium's two date stamps are zeroed in place so repeated conversions on the same browser build are byte-identical; `report.deterministic` carries a content digest over the extracted page text.
-
-### Inputs
-
-| Type | Example | Notes |
-| --- | --- | --- |
-| `url` | `{ type: "url", url: "https://example.com" }` | `http`/`https` only; private/loopback destinations blocked by default (opt in via `security`) |
-| `html` | `{ type: "html", html, baseUrl? }` | Optional `baseUrl` resolves relative references |
-| `file` | `{ type: "file", path }` | Opt-in only: `security.allowLocalFiles` + `allowedLocalDirectories` |
-
-### Security defaults
-
-- Chromium sandbox **enabled** (Playwright's own default disables it; dom2pdf does not).
-- Private, link-local, and loopback destinations blocked unless explicitly allowed.
-- Local file reads denied unless explicitly allowlisted; symlink escapes are detected.
-- Unknown options are rejected (`UNSUPPORTED_OPTION`), never silently ignored.
-
-## Errors
-
-All failures throw `Dom2PdfError` with a stable machine-readable `code` such as `INVALID_INPUT`, `UNSUPPORTED_OPTION`, `BLOCKED_URL`, `LOCAL_FILE_NOT_ALLOWED`, `NAVIGATION_FAILED`, `READINESS_TIMEOUT`, `RENDER_TIMEOUT`, `PDF_VALIDATION_FAILED`, `QUALITY_POLICY_FAILED`, `BROWSER_FAILURE`, `CANCELLED`, or `CONVERTER_CLOSED`.
-
-Conversions accept an optional `signal: AbortSignal`; aborting fails fast with `CANCELLED` and cleans up the browser context. The CLI maps failures to stable exit codes: `0` ok, `2` usage, `3` conversion error, `4` quality-policy rejection, `130` SIGINT.
+CLI exit codes: `0` ok · `2` usage · `3` conversion failed · `4` quality policy
+rejected · `130` SIGINT. Full table: [docs/api.md](docs/api.md).
 
 ## Documentation
 
@@ -129,30 +284,28 @@ Conversions accept an optional `signal: AbortSignal`; aborting fails fast with `
 ## Development
 
 ```bash
+git clone https://github.com/Haimanot25/dom2pdf && cd dom2pdf
 pnpm install
 pnpm browser:install        # provision the pinned Chromium build
-pnpm lint                   # eslint
-pnpm typecheck              # strict tsc over src + tests
-pnpm test:unit              # vitest (validation, security, deadlines, …)
+pnpm lint && pnpm typecheck
+pnpm test:unit              # vitest
 pnpm test:e2e               # playwright test (real browser conversions)
-pnpm build                  # compile packages
+pnpm build
 ```
 
-Requires Node.js ≥ 22.13 (24 LTS recommended) and pnpm.
+CI runs the full gate on every change.
 
 ## Roadmap
 
-1. ✅ **Phase 1 — Foundation**: workspace, strict TypeScript, working URL/HTML/file → PDF, security pre-checks, deadlines.
-2. ✅ **Phase 2 — Core rendering**: screen mode with paper-fit output policy, print CSS/paged media coverage, pagination, cancellation (`AbortSignal`), structured errors.
-3. ✅ **Phase 3 — Readiness & quality**: font/image/network/selector readiness under one deadline, observed resource diagnostics, text extraction checks, quality policies (`QUALITY_POLICY_FAILED`).
-4. ✅ **Phase 4 — CLI & documentation**: `dom2pdf convert|inspect` with `--help`, JSON reports, stable exit codes (0/2/3/4/130), SIGINT cancellation; guides under `docs/`.
-5. ✅ **Phase 5 — Security & reliability**: request-layer policies at the network layer (`BLOCKED_REDIRECT`, `BLOCKED_RESOURCE`, scripted-navigation blocks), resource limits (`RESOURCE_LIMIT_EXCEEDED`: requests, output bytes, fail-fast concurrency cap), credential redaction on error paths.
-6. ✅ **Phase 6 — Benchmark & alpha**: `dom2pdf benchmark` (deterministic fixtures; dom2pdf vs raw-Playwright baseline vs html2pdf.js vs WeasyPrint with honest skips), GitHub Actions CI, production Docker image (sandbox on), release docs.
-7. ✅ **Local web UI (`dom2pdf-web`)**: localhost-only URL→PDF form; the full security policy applies (loopback/private targets need explicit server flags; the UI cannot escalate).
-8. ✅ **Phase 7 — Adaptive readiness**: per-resource patience (`readiness.slowResourceMs`) so one hung asset cannot burn the shared deadline, and a bounded lazy-load drain (`readiness.lazyLoad`) so `loading="lazy"` content is actually fetched.
-9. ✅ **Phase 8 — Verified output**: render-fidelity verification (`report.fidelity`, honest skip rules), failure forensics (`error.details.diagnostics`, CLI `--diagnostics`, always-on in the web UI), and deterministic byte-reproducible output (`deterministic`, CLI `--deterministic`, content digest).
-10. ✅ **Phase 9 — Scroll-driven content**: the readiness sweep walks every scrollable document — `loading="lazy"` markers, infinite-scroll feeds, and reveal-on-scroll animations that would otherwise print as blank space — reporting what it revealed; captures are taken with animations fast-forwarded to their settled end state so reveal slides never clip text at the page edge.
+All nine foundation phases are shipped and tested (see
+[CHANGELOG](CHANGELOG.md)): rendering modes, readiness & adaptive patience,
+quality checks/policies, CLI, request-layer security & limits, benchmark,
+local web UI, verified output, scroll-driven content, object-aware pagination.
+
+Next up: the reserved `screen` output policies (`viewport-pages`,
+`full-content`), then 1.0 API freeze. No feature is documented here before it
+works.
 
 ## License
 
-MIT
+[MIT](LICENSE) — contributions welcome.
